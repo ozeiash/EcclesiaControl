@@ -1,0 +1,33 @@
+name=.gitignore
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*.iml
+.DS_Store
+
+# Backend (Maven)
+backend/target/
+backend/*.jar
+backend/*.war
+backend/logs/
+
+# Frontend (Node)
+frontend/node_modules/
+frontend/npm-debug.log
+frontend/dist/
+frontend/build/
+
+# Environment
+.env
+.env.local
+*.properties.local
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Logs
+logs/
+*.log
