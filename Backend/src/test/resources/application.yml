@@ -15,19 +15,22 @@
     jpa:
       database-platform: org.hibernate.dialect.H2Dialect
       hibernate:
-        ddl-auto: create-drop
+        ddl-auto: create-drop  # ← Deixa JPA criar as tabelas
       show-sql: false
-      properties:
-        hibernate:
-          format_sql: true
 
     flyway:
-      enabled: false  # Desabilita Flyway nos testes
-
-    jackson:
-      default-property-inclusion: non_null
+      enabled: false  # ← IMPORTANTE: Desabilita Flyway nos testes
 
   logging:
     level:
       root: WARN
-      com.bitatbit: DEBUG
+      br.com.bitabit.ecclesiacontrol: DEBUG
+
+    jackson:
+      default-property-inclusion: non_null
+
+  # JWT Configuration for Tests
+  jwt:
+      secret: test-secret-key-for-testing-purposes-minimum-256-bits-long
+      expiration: 3600000
+      refresh-expiration: 604800000
