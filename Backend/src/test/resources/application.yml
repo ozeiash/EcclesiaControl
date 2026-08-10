@@ -1,0 +1,33 @@
+  spring:
+    application:
+      name: ecclesiastic-control-backend-test
+
+    datasource:
+      url: jdbc:h2:mem:testdb
+      driver-class-name: org.h2.Driver
+      username: sa
+      password:
+
+    h2:
+      console:
+        enabled: true
+
+    jpa:
+      database-platform: org.hibernate.dialect.H2Dialect
+      hibernate:
+        ddl-auto: create-drop
+      show-sql: false
+      properties:
+        hibernate:
+          format_sql: true
+
+    flyway:
+      enabled: false  # Desabilita Flyway nos testes
+
+    jackson:
+      default-property-inclusion: non_null
+
+  logging:
+    level:
+      root: WARN
+      com.bitatbit: DEBUG
