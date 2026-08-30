@@ -1,9 +1,10 @@
 package br.com.bitabit.ecclesiacontrol.core.config;
 
+import br.com.bitabit.ecclesiacontrol.core.security.JwtAuthenticationFilter;
+import br.com.bitabit.ecclesiacontrol.core.security.TenantContextFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -14,6 +15,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -27,6 +29,8 @@ import java.util.Arrays;
 public class SecurityConfig {
 
     private final UserDetailsService userDetailsService;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final TenantContextFilter tenantContextFilter;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -47,13 +51,12 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(tenantContextFilter, JwtAuthenticationFilter.class)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // Permitir endpoints públicos
                         .requestMatchers("/api/v1/auth/**").permitAll()
-
-                        // Swagger e documentação
                         .requestMatchers(
                                 "/api/v1/swagger-ui.html",
                                 "/api/v1/swagger-ui/**",
@@ -62,11 +65,7 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/swagger-ui.html"
                         ).permitAll()
-
-                        // Actuator
                         .requestMatchers("/actuator/health").permitAll()
-
-                        // Tudo mais requer autenticação
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exception ->

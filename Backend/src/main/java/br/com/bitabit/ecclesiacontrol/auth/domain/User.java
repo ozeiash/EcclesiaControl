@@ -4,6 +4,9 @@ import br.com.bitabit.ecclesiacontrol.tenant.domain.Tenant;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.FilterDef;
+import org.hibernate.annotations.Filter;
+import org.hibernate.annotations.ParamDef;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.annotations.UuidGenerator;
 
@@ -13,9 +16,7 @@ import java.util.Set;
 import java.util.UUID;
 
 @Entity
-@Table(name = "users", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"email", "tenant_id"})
-})
+@Table(name = "users")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -28,7 +29,7 @@ public class User {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tenant_id", nullable = false)
-    private Tenant tenant;
+    private Tenant tenant; // metadado informativo (filial de origem do cadastro) — não usado para autorização
 
     @Column(nullable = false)
     private String email;
@@ -49,14 +50,7 @@ public class User {
     @Column(name = "last_login")
     private LocalDateTime lastLogin;
 
-    @ManyToMany(fetch = FetchType.EAGER, cascade = CascadeType.MERGE)
-    @JoinTable(
-            name = "user_roles",
-            joinColumns = @JoinColumn(name = "user_id"),
-            inverseJoinColumns = @JoinColumn(name = "role_id")
-    )
-    @Builder.Default
-    private Set<Role> roles = new HashSet<>();
+    // ← campo @ManyToMany "roles" removido — RBAC agora é 100% via user_filial_role
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

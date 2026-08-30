@@ -1,5 +1,6 @@
 package br.com.bitabit.ecclesiacontrol.core.security;
 
+import br.com.bitabit.ecclesiacontrol.auth.domain.Role;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
+import java.util.UUID;
 
 @Slf4j
 @Component
@@ -25,33 +27,33 @@ public class JwtTokenProvider {
     @Value("${jwt.refresh-expiration}")
     private long refreshTokenExpirationMs;
 
-    public String generateToken(Authentication authentication) {
-        return generateToken(authentication.getName());
-    }
-
-    public String generateToken(String email) {
+    public String generateToken(String email, UUID tenantId, Role.RoleScope scope) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtExpirationMs);
-
         return Jwts.builder()
                 .setSubject(email)
                 .setIssuedAt(now)
                 .setExpiration(expiryDate)
+                .claim("tenant_id", tenantId.toString())
+                .claim("scope", scope.name())          // ← NOVO
                 .signWith(getSigningKey(), SignatureAlgorithm.HS512)
                 .compact();
     }
 
-    public String generateRefreshToken(String email) {
-        Date now = new Date();
-        Date expiryDate = new Date(now.getTime() + refreshTokenExpirationMs);
+    public UUID getTenantIdFromToken(String token) {
+        return UUID.fromString(getClaims(token).get("tenant_id", String.class));
+    }
 
-        return Jwts.builder()
-                .setSubject(email)
-                .setIssuedAt(now)
-                .setExpiration(expiryDate)
-                .claim("type", "REFRESH")
-                .signWith(getSigningKey(), SignatureAlgorithm.HS512)
-                .compact();
+    public String getScopeFromToken(String token) {
+        return getClaims(token).get("scope", String.class);
+    }
+
+    private Claims getClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
     }
 
     public String getUserEmailFromToken(String token) {

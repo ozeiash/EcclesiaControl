@@ -22,6 +22,4 @@ public class LoginRequest {
     @Size(min = 6, message = "Senha deve ter no mínimo 6 caracteres")
     private String password;
 
-    @NotBlank(message = "Tenant ID é obrigatório")
-    private String tenantId;
 }
