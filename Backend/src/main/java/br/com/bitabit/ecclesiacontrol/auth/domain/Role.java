@@ -11,7 +11,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "roles", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"name", "tenant_id"})
+        @UniqueConstraint(columnNames = {"name"})
 })
 @Data
 @NoArgsConstructor
@@ -23,16 +23,16 @@ public class Role {
     @UuidGenerator
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "tenant_id", nullable = false)
-    private Tenant tenant;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private RoleName name;
 
     @Column(nullable = false)
     private String description;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private RoleScope scope;  // ← ADICIONAR
 
     @ManyToMany(fetch = FetchType.EAGER, cascade = CascadeType.MERGE)
     @JoinTable(
@@ -53,5 +53,10 @@ public class Role {
         LIDER_CELULA,
         MEMBRO,
         VOLUNTARIO
+    }
+
+    public enum RoleScope {
+        LOCAL,  // Acesso limitado a uma filial
+        GLOBAL  // Acesso a todas as filiais
     }
 }
