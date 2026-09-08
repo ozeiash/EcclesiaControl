@@ -30,7 +30,7 @@
         SPRING_DATASOURCE_USERNAME: ecclesiastic_user
         SPRING_DATASOURCE_PASSWORD: ecclesiastic_password
         SPRING_PROFILES_ACTIVE: dev
-        JWT_SECRET: your-super-secret-jwt-key-change-in-production-minimum-256-bits
+        JWT_SECRET: ${JWT_SECRET}
       ports:
         - "8080:8080"
       depends_on:
