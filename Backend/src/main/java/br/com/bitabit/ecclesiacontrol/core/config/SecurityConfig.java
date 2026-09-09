@@ -2,15 +2,19 @@ package br.com.bitabit.ecclesiacontrol.core.config;
 
 import br.com.bitabit.ecclesiacontrol.core.security.JwtAuthenticationFilter;
 import br.com.bitabit.ecclesiacontrol.core.security.TenantContextFilter;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -19,8 +23,13 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-
+import br.com.bitabit.ecclesiacontrol.core.exception.ApiError;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.security.access.AccessDeniedException;
+import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
+
 
 @Configuration
 @EnableWebSecurity
@@ -31,6 +40,7 @@ public class SecurityConfig {
     private final UserDetailsService userDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final TenantContextFilter tenantContextFilter;
+    private final ObjectMapper objectMapper;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -56,27 +66,47 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/auth/**").permitAll()
+                        .requestMatchers("/auth/login", "/auth/refresh-token").permitAll()
                         .requestMatchers(
-                                "/api/v1/swagger-ui.html",
-                                "/api/v1/swagger-ui/**",
-                                "/api/v1/v3/api-docs/**",
-                                "/v3/api-docs/**",
+                                "/swagger-ui.html",
                                 "/swagger-ui/**",
-                                "/swagger-ui.html"
+                                "/v3/api-docs/**"
                         ).permitAll()
                         .requestMatchers("/actuator/health").permitAll()
                         .anyRequest().authenticated()
                 )
-                .exceptionHandling(exception ->
-                        exception.authenticationEntryPoint((request, response, authException) -> {
-                            response.setStatus(401);
-                            response.setContentType("application/json");
-                            response.getWriter().write("{\"error\": \"Unauthorized\"}");
-                        })
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint(this::handleUnauthorized)
+                        .accessDeniedHandler(this::handleForbidden)
                 );
 
         return http.build();
+    }
+
+    private void handleUnauthorized(HttpServletRequest request, HttpServletResponse response,
+                                    AuthenticationException authException) throws IOException {
+        writeApiError(response, request, HttpStatus.UNAUTHORIZED, "Não autenticado");
+    }
+
+    private void handleForbidden(HttpServletRequest request, HttpServletResponse response,
+                                 AccessDeniedException accessDeniedException) throws IOException {
+        writeApiError(response, request, HttpStatus.FORBIDDEN, "Acesso negado");
+    }
+
+    private void writeApiError(HttpServletResponse response, HttpServletRequest request,
+                               HttpStatus status, String message) throws IOException {
+        ApiError error = ApiError.builder()
+                .timestamp(Instant.now())
+                .status(status.value())
+                .error(status.getReasonPhrase())
+                .message(message)
+                .path(request.getRequestURI())
+                .build();
+
+        response.setStatus(status.value());
+        response.setCharacterEncoding("UTF-8"); // ← adicionar antes do setContentType/getWriter
+        response.setContentType("application/json");
+        response.getWriter().write(objectMapper.writeValueAsString(error));
     }
 
     @Bean

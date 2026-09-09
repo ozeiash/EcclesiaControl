@@ -46,3 +46,15 @@ docker-compose up -d
 - API: http://localhost:8080/api/v1
 - Swagger: http://localhost:8080/api/v1/swagger-ui.html
 - Frontend: http://localhost:3000
+```
+
+## Banco de dados de teste
+
+O banco `ecclesiacontrol_test` é criado automaticamente pelo script
+`init-scripts/01-create-test-db.sql` na primeira subida do container
+Postgres (volume novo). Se precisar recriar do zero:
+
+\`\`\`bash
+docker compose down -v
+docker compose up -d
+\`\`\`

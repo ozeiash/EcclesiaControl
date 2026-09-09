@@ -35,6 +35,8 @@ public class Permission {
         REPORTS,
         AUDIT,
         COMMUNICATION,
-        SETTINGS
+        SETTINGS,
+        PESSOAS,
+        GOVERNANCA
     }
 }

@@ -1,0 +1,4 @@
+logging:
+  level:
+    br.com.bitabit.ecclesiacontrol: DEBUG
+    org.hibernate.SQL: DEBUG

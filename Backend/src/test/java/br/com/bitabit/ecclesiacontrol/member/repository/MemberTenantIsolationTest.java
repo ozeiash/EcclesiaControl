@@ -1,5 +1,6 @@
 package br.com.bitabit.ecclesiacontrol.member.repository;
 
+import br.com.bitabit.ecclesiacontrol.core.testsupport.AbstractRepositoryTest;
 import br.com.bitabit.ecclesiacontrol.member.domain.Member;
 import br.com.bitabit.ecclesiacontrol.tenant.domain.Tenant;
 import br.com.bitabit.ecclesiacontrol.tenant.repository.TenantRepository;
@@ -16,9 +17,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DataJpaTest
-@ActiveProfiles("test")
-class MemberTenantIsolationTest {
+class MemberTenantIsolationTest extends AbstractRepositoryTest {
 
     @Autowired
     private TestEntityManager entityManager;
