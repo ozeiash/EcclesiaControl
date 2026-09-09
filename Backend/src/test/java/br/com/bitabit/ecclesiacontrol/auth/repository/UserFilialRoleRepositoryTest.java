@@ -3,6 +3,7 @@ package br.com.bitabit.ecclesiacontrol.auth.repository;
 import br.com.bitabit.ecclesiacontrol.auth.domain.Role;
 import br.com.bitabit.ecclesiacontrol.auth.domain.User;
 import br.com.bitabit.ecclesiacontrol.auth.domain.UserFilialRole;
+import br.com.bitabit.ecclesiacontrol.core.testsupport.AbstractRepositoryTest;
 import br.com.bitabit.ecclesiacontrol.tenant.domain.Tenant;
 import br.com.bitabit.ecclesiacontrol.tenant.repository.TenantRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,9 +17,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
 
-@DataJpaTest
-@ActiveProfiles("test")
-class UserFilialRoleRepositoryTest {
+
+class UserFilialRoleRepositoryTest extends AbstractRepositoryTest {
 
     @Autowired
     private UserFilialRoleRepository userFilialRoleRepository;
@@ -40,7 +40,6 @@ class UserFilialRoleRepositoryTest {
 
     @BeforeEach
     void setUp() {
-        // Criar tenants
         salaFilial = tenantRepository.save(Tenant.builder()
                 .name("Sede Geral")
                 .type(Tenant.TenantType.SEDE)
@@ -54,7 +53,6 @@ class UserFilialRoleRepositoryTest {
                 .email("filialA@church.com")
                 .build());
 
-        // Criar usuário
         testUser = userRepository.save(User.builder()
                 .email("pastor@church.com")
                 .passwordHash("hashed_password")
@@ -63,18 +61,13 @@ class UserFilialRoleRepositoryTest {
                 .status(User.UserStatus.ACTIVE)
                 .build());
 
-        // Criar roles
-        globalRole = roleRepository.save(Role.builder()
-                .name(Role.RoleName.PASTOR_SEDE)
-                .description("Pastor da Sede")
-                .scope(Role.RoleScope.GLOBAL)
-                .build());
+        globalRole = roleRepository.findByName(Role.RoleName.PASTOR_SEDE)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Role PASTOR_SEDE não encontrada — confirme que a Migration 6 (seed) foi aplicada"));
 
-        localRole = roleRepository.save(Role.builder()
-                .name(Role.RoleName.PASTOR_FILIAL)
-                .description("Pastor de Filial")
-                .scope(Role.RoleScope.LOCAL)
-                .build());
+        localRole = roleRepository.findByName(Role.RoleName.PASTOR_FILIAL)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Role PASTOR_FILIAL não encontrada — confirme que a Migration 6 (seed) foi aplicada"));
     }
 
     @Test
