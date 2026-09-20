@@ -45,14 +45,18 @@ public class Role {
 
     public enum RoleName {
         SUPER_ADMIN,
+        TI_ADMIN,
+        CONTADOR,
         PASTOR_SEDE,
         PASTOR_FILIAL,
-        TESOUREIRO,
-        SECRETARIO,
+        SECRETARIO_SEDE,
+        SECRETARIO_FILIAL,
+        TESOUREIRO_SEDE,
+        TESOUREIRO_FILIAL,
         LIDER_MINISTERIO,
         LIDER_CELULA,
-        MEMBRO,
-        VOLUNTARIO
+        VOLUNTARIO,
+        MEMBRO
     }
 
     public enum RoleScope {

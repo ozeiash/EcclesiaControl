@@ -1,9 +1,7 @@
 package br.com.bitabit.ecclesiacontrol.core.service;
 
-import br.com.bitabit.ecclesiacontrol.auth.domain.User;
 import br.com.bitabit.ecclesiacontrol.core.domain.AuditLog;
 import br.com.bitabit.ecclesiacontrol.core.repository.AuditLogRepository;
-import br.com.bitabit.ecclesiacontrol.core.util.TenantContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -24,13 +22,13 @@ public class AuditService {
     private final ObjectMapper objectMapper;
 
     @Transactional
-    public void log(User actor, UUID tenantId, String action, String entityType, UUID entityId,
+    public void log(AuditActor actor, UUID tenantId, String action, String entityType, UUID entityId,
                     Object oldValue, Object newValue) {
         try {
             HttpServletRequest request = currentRequest();
 
             AuditLog entry = AuditLog.builder()
-                    .user(actor)
+                    .userId(actor != null ? actor.id() : null)
                     .action(action)
                     .entityType(entityType)
                     .entityId(entityId)
@@ -39,7 +37,7 @@ public class AuditService {
                     .ipAddress(request != null ? request.getRemoteAddr() : null)
                     .userAgent(request != null ? request.getHeader("User-Agent") : null)
                     .build();
-            entry.setTenantId(tenantId); // ← agora vem explícito do chamador, não do TenantContext
+            entry.setTenantId(tenantId);
 
             auditLogRepository.save(entry);
         } catch (Exception e) {

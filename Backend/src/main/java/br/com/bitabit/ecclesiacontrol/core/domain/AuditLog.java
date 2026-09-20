@@ -1,13 +1,11 @@
 package br.com.bitabit.ecclesiacontrol.core.domain;
 
-import br.com.bitabit.ecclesiacontrol.auth.domain.User;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.type.SqlTypes;
-import org.springframework.data.annotation.CreatedDate;
-import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -25,15 +23,14 @@ public class AuditLog extends TenantAwareEntity {
     @UuidGenerator
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
-    private User user; // pode ser nulo — ex.: ação de job/sistema, sem usuário associado
+    @Column(name = "user_id")
+    private UUID userId; // desacoplado da entidade User — auditoria não precisa navegar pro domínio de usuário
 
     @Column(nullable = false)
-    private String action; // ex.: "LOGIN", "SWITCH_FILIAL", "VIEW_TITHE", "UPDATE_MEMBER"
+    private String action;
 
     @Column(name = "entity_type", nullable = false)
-    private String entityType; // ex.: "User", "Member", "Tithe"
+    private String entityType;
 
     @Column(name = "entity_id", nullable = false)
     private UUID entityId;

@@ -126,6 +126,9 @@ public class Member extends TenantAwareEntity {
     @Column(columnDefinition = "TEXT")
     private String observations;
 
+    @Column(name = "duplicate_of_id")
+    private UUID duplicateOfId;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -141,6 +144,6 @@ public class Member extends TenantAwareEntity {
     }
 
     public enum MembershipStatus {
-        ATIVO, INATIVO, AFASTADO, SOB_DISCIPLINA, FALECIDO
+        ATIVO, INATIVO, AFASTADO, SOB_DISCIPLINA, FALECIDO, DUPLICATE
     }
 }

@@ -72,5 +72,35 @@ public class DevDataSeeder implements CommandLineRunner {
         log.info("=== FILIAL DE TESTE (DEV) DISPONÍVEL ===");
         log.info("ID: {}", filialTeste.getId());
         log.info("==========================================");
+
+        User secretary = userRepository.findByEmail("secretaria@dev.local")
+                .orElseGet(() -> userRepository.save(User.builder()
+                        .email("secretaria@dev.local")
+                        .passwordHash(passwordEncoder.encode("secretaria123"))
+                        .fullName("Secretária da Filial (Dev)")
+                        .tenant(filialTeste)
+                        .status(User.UserStatus.ACTIVE)
+                        .build()));
+
+        Role secretarioFilialRole = roleRepository.findByName(Role.RoleName.SECRETARIO_FILIAL)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Role SECRETARIO_FILIAL não encontrada — confirme que a Migration V8 foi aplicada"));
+
+        boolean hasSecretaryAssignment = userFilialRoleRepository.findByUserAndFilial(secretary, filialTeste.getId())
+                .stream().anyMatch(ufr -> ufr.getRole().getName() == Role.RoleName.SECRETARIO_FILIAL);
+
+        if (!hasSecretaryAssignment) {
+            userFilialRoleRepository.save(UserFilialRole.builder()
+                    .user(secretary)
+                    .filial(filialTeste)
+                    .role(secretarioFilialRole)
+                    .build());
+            log.info("Vínculo SECRETARIO_FILIAL criado para secretaria@dev.local");
+        }
+
+        log.info("=== USUÁRIA SECRETÁRIA (DEV) DISPONÍVEL ===");
+        log.info("Email: secretaria@dev.local | Senha: secretaria123 | Filial: {}", filialTeste.getId());
+        log.info("==============================================");
     }
+
 }
