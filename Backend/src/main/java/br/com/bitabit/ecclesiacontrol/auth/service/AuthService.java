@@ -13,6 +13,7 @@ import br.com.bitabit.ecclesiacontrol.core.exception.AuthenticationFailedExcepti
 import br.com.bitabit.ecclesiacontrol.core.exception.BusinessRuleException;
 import br.com.bitabit.ecclesiacontrol.core.exception.ResourceNotFoundException;
 import br.com.bitabit.ecclesiacontrol.core.security.JwtTokenProvider;
+import br.com.bitabit.ecclesiacontrol.core.service.AuditActor;
 import br.com.bitabit.ecclesiacontrol.core.service.AuditService;
 import br.com.bitabit.ecclesiacontrol.tenant.domain.Tenant;
 import br.com.bitabit.ecclesiacontrol.tenant.repository.TenantRepository;
@@ -68,7 +69,7 @@ public class AuthService {
         String refreshToken = refreshTokenService.issue(
                 user, defaultRole.getFilial().getId(), defaultRole.getRole().getScope());
 
-        auditService.log(user, defaultRole.getFilial().getId(), "LOGIN", "User", user.getId(), null, null);
+        auditService.log(AuditActor.of(user), defaultRole.getFilial().getId(), "LOGIN", "User", user.getId(), null, null);
 
         log.info("User logged in: {} at filial: {}", user.getEmail(), defaultRole.getFilial().getName());
 
@@ -122,7 +123,7 @@ public class AuthService {
         String token = jwtTokenProvider.generateToken(user.getEmail(), targetFilialId, Role.RoleScope.LOCAL);
         String refreshToken = refreshTokenService.issue(user, targetFilialId, Role.RoleScope.LOCAL);
 
-        auditService.log(user, targetFilialId, "SWITCH_FILIAL", "User", user.getId(),
+        auditService.log(AuditActor.of(user), targetFilialId, "SWITCH_FILIAL", "User", user.getId(),
                 null, java.util.Map.of("targetFilialId", targetFilialId));
 
         log.info("User switched filial: {} to {}", user.getEmail(), targetFilialId);
