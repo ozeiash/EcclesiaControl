@@ -46,8 +46,11 @@ public class MemberService {
     }
 
     @Transactional(readOnly = true)
-    public Page<MemberSummaryResponse> findAll(Pageable pageable) {
-        return memberRepository.findAll(pageable).map(mapper::toSummary);
+    public Page<MemberSummaryResponse> findAll(Member.MembershipStatus status, Pageable pageable) {
+        Page<Member> page = (status != null)
+                ? memberRepository.findByMembershipStatus(status, pageable)
+                : memberRepository.findAll(pageable);
+        return page.map(mapper::toSummary);
     }
 
     @Transactional

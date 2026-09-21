@@ -2,6 +2,7 @@ package br.com.bitabit.ecclesiacontrol.member.controller;
 
 import br.com.bitabit.ecclesiacontrol.core.security.AuthenticatedUser;
 import br.com.bitabit.ecclesiacontrol.core.service.AuditActor;
+import br.com.bitabit.ecclesiacontrol.member.domain.Member;
 import br.com.bitabit.ecclesiacontrol.member.dto.*;
 import br.com.bitabit.ecclesiacontrol.member.service.MemberService;
 import jakarta.validation.Valid;
@@ -39,8 +40,10 @@ public class MemberController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('PERM_MEMBER_READ')")
-    public ResponseEntity<Page<MemberSummaryResponse>> findAll(Pageable pageable) {
-        return ResponseEntity.ok(memberService.findAll(pageable));
+    public ResponseEntity<Page<MemberSummaryResponse>> findAll(
+            @RequestParam(required = false) Member.MembershipStatus status,
+            Pageable pageable) {
+        return ResponseEntity.ok(memberService.findAll(status, pageable));
     }
 
     @PutMapping("/{id}")
