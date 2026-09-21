@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <style>
+        body { font-family: 'Helvetica', sans-serif; font-size: 14px; color: #222; margin: 60px; }
+        .header { text-align: center; margin-bottom: 40px; }
+        .header h1 { font-size: 18px; margin: 0; }
+        .header p { font-size: 12px; color: #555; margin: 2px 0; }
+        .title { text-align: center; font-size: 16px; font-weight: bold; margin: 30px 0; text-transform: uppercase; }
+        .body { line-height: 1.8; text-align: justify; }
+        .signature { margin-top: 80px; text-align: center; }
+        .signature .line { border-top: 1px solid #222; width: 300px; margin: 0 auto; padding-top: 6px; }
+    </style>
+</head>
+<body>
+<div class="header">
+    <h1 th:text="${tenantName}">Nome da Igreja</h1>
+    <p th:text="${tenantAddress}">Endereço</p>
+    <p th:text="${tenantEmail} + ' · ' + ${tenantPhone}">Contato</p>
+</div>
+
+<div class="title">Carta de Transferência</div>
+
+<div class="body">
+    <p>
+        Declaramos, para os devidos fins, que
+        <strong th:text="${memberName}">Nome do Membro</strong>,
+        portador(a) do CPF nº <span th:text="${memberCpf}">000.000.000-00</span>,
+        admitido(a) nesta igreja em <span th:text="${admissionDate}">01/01/2000</span>,
+        encontra-se em plena comunhão e boa situação eclesiástica,
+        sendo transferido(a) para
+        <strong th:text="${destinationChurchName}">Igreja de Destino</strong>,
+        localizada em <span th:text="${destinationCity}">Cidade</span>.
+    </p>
+    <p th:if="${reason != null and !reason.isEmpty()}">
+        Motivo da transferência: <span th:text="${reason}"></span>.
+    </p>
+    <p>
+        Recomendamos o(a) referido(a) irmão(ã) à comunhão e cuidado pastoral
+        da igreja receptora.
+    </p>
+</div>
+
+<p style="margin-top: 50px;" th:text="${issueDate}">Data de emissão</p>
+
+<div class="signature">
+    <div class="line">Assinatura do responsável</div>
+</div>
+</body>
+</html>
