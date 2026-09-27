@@ -37,6 +37,7 @@ public class Permission {
         COMMUNICATION,
         SETTINGS,
         PESSOAS,
-        GOVERNANCA
+        GOVERNANCA,
+        FINANCEIRO
     }
 }
