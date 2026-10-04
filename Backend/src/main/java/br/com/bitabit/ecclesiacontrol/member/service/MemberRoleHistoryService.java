@@ -37,7 +37,7 @@ public class MemberRoleHistoryService {
                 .startedAt(request.getStartedAt())
                 .endedAt(request.getEndedAt())
                 .build();
-        entry.setTenantId(TenantContext.getTenantId());
+        entry.setTenantId(member.getTenantId());
 
         MemberRoleHistory saved = roleHistoryRepository.save(entry);
 

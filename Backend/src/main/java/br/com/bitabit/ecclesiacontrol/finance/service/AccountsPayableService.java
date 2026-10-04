@@ -2,6 +2,7 @@ package br.com.bitabit.ecclesiacontrol.finance.service;
 
 import br.com.bitabit.ecclesiacontrol.core.exception.BusinessRuleException;
 import br.com.bitabit.ecclesiacontrol.core.exception.ResourceNotFoundException;
+import br.com.bitabit.ecclesiacontrol.core.security.TenantGuard;
 import br.com.bitabit.ecclesiacontrol.core.service.AuditActor;
 import br.com.bitabit.ecclesiacontrol.core.service.AuditService;
 import br.com.bitabit.ecclesiacontrol.core.util.TenantContext;
@@ -26,6 +27,7 @@ public class AccountsPayableService {
     private final AccountsPayableSettlementRepository settlementRepository;
     private final FinancialTransactionService transactionService;
     private final AuditService auditService;
+    private final TenantGuard tenantGuard;
 
     @Transactional
     public AccountsPayableResponse create(CreateAccountsPayableRequest request, AuditActor actor) {
@@ -51,8 +53,9 @@ public class AccountsPayableService {
 
     @Transactional
     public AccountsPayableResponse settle(UUID payableId, SettlePayableRequest request, AuditActor actor) {
-        AccountsPayable payable = payableRepository.findById(payableId)
+        AccountsPayable payable = payableRepository.findByIdForUpdate(payableId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conta a pagar não encontrada"));
+        tenantGuard.requireSameTenant(payable, "Conta a pagar");
 
         if (payable.getStatus() == PayableStatus.PAGO || payable.getStatus() == PayableStatus.CANCELADO) {
             throw new BusinessRuleException("Não é possível dar baixa numa conta já paga ou cancelada");

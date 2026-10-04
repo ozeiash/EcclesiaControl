@@ -1,5 +1,6 @@
 package br.com.bitabit.ecclesiacontrol.finance.repository;
 
+import br.com.bitabit.ecclesiacontrol.core.repository.TenantScopedRepository;
 import br.com.bitabit.ecclesiacontrol.finance.domain.AccountsPayable;
 import br.com.bitabit.ecclesiacontrol.finance.domain.AccountsPayableSettlement;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -12,7 +13,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Repository
-public interface AccountsPayableSettlementRepository extends JpaRepository<AccountsPayableSettlement, UUID> {
+public interface AccountsPayableSettlementRepository extends TenantScopedRepository<AccountsPayableSettlement, UUID> {
 
     List<AccountsPayableSettlement> findByAccountsPayable(AccountsPayable accountsPayable);
 

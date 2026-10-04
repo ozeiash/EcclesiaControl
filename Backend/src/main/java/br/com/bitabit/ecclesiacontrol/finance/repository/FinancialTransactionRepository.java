@@ -1,5 +1,6 @@
 package br.com.bitabit.ecclesiacontrol.finance.repository;
 
+import br.com.bitabit.ecclesiacontrol.core.repository.TenantScopedRepository;
 import br.com.bitabit.ecclesiacontrol.finance.domain.FinancialTransaction;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -10,6 +11,6 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 @Repository
-public interface FinancialTransactionRepository extends JpaRepository<FinancialTransaction, UUID> {
+public interface FinancialTransactionRepository extends TenantScopedRepository<FinancialTransaction, UUID> {
     Page<FinancialTransaction> findByTransactionDateBetween(LocalDate start, LocalDate end, Pageable pageable);
 }

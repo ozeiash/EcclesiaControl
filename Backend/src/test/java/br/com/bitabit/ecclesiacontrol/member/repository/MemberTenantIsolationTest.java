@@ -30,6 +30,8 @@ class MemberTenantIsolationTest extends AbstractRepositoryTest {
 
     private Tenant filialA;
     private Tenant filialB;
+    private Member memberA;
+    private Member memberB;
 
     @BeforeEach
     void setUp() {
@@ -45,14 +47,14 @@ class MemberTenantIsolationTest extends AbstractRepositoryTest {
                 .email("filialB@church.com")
                 .build());
 
-        Member memberA = Member.builder()
+        memberA = Member.builder()
                 .fullName("Membro da Filial A")
                 .membershipStatus(Member.MembershipStatus.ATIVO)
                 .build();
         memberA.setTenantId(filialA.getId());
         memberRepository.save(memberA);
 
-        Member memberB = Member.builder()
+        memberB = Member.builder()
                 .fullName("Membro da Filial B")
                 .membershipStatus(Member.MembershipStatus.ATIVO)
                 .build();
@@ -92,5 +94,21 @@ class MemberTenantIsolationTest extends AbstractRepositoryTest {
         List<Member> allMembers = memberRepository.findAll();
 
         assertThat(allMembers).hasSize(2);
+    }
+
+    @Test
+    void shouldNotLoadMemberFromOtherFilialById() {
+        Session session = entityManager.getEntityManager().unwrap(Session.class);
+        session.enableFilter("tenantFilter").setParameter("tenantId", filialA.getId());
+
+        assertThat(memberRepository.findById(memberB.getId())).isEmpty();
+    }
+
+    @Test
+    void shouldStillLoadMemberFromActiveFilialById() {
+        Session session = entityManager.getEntityManager().unwrap(Session.class);
+        session.enableFilter("tenantFilter").setParameter("tenantId", filialA.getId());
+
+        assertThat(memberRepository.findById(memberA.getId())).isPresent();
     }
 }
