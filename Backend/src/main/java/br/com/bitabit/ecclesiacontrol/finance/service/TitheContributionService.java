@@ -2,6 +2,7 @@ package br.com.bitabit.ecclesiacontrol.finance.service;
 
 import br.com.bitabit.ecclesiacontrol.core.exception.BusinessRuleException;
 import br.com.bitabit.ecclesiacontrol.core.exception.ResourceNotFoundException;
+import br.com.bitabit.ecclesiacontrol.core.security.TenantGuard;
 import br.com.bitabit.ecclesiacontrol.core.service.AuditActor;
 import br.com.bitabit.ecclesiacontrol.core.service.AuditService;
 import br.com.bitabit.ecclesiacontrol.core.util.TenantContext;
@@ -27,6 +28,7 @@ public class TitheContributionService {
     private final MemberRepository memberRepository;
     private final FinancialTransactionService transactionService;
     private final AuditService auditService;
+    private final TenantGuard tenantGuard;
 
     @Transactional
     public TitheContributionResponse create(TitheContributionRequest request, AuditActor actor) {
@@ -45,6 +47,7 @@ public class TitheContributionService {
         if (!request.isAnonymous()) {
             member = memberRepository.findById(request.getMemberId())
                     .orElseThrow(() -> new ResourceNotFoundException("Membro não encontrado"));
+            tenantGuard.requireSameTenant(member, "Membro");
         }
 
         FinancialTransaction transaction = FinancialTransaction.builder()
@@ -90,6 +93,7 @@ public class TitheContributionService {
         }
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new ResourceNotFoundException("Membro não encontrado"));
+        tenantGuard.requireSameTenant(member, "Membro");
         return titheRepository.findByMember(member).stream()
                 .map(t -> toResponse(t, true)).toList();
     }
@@ -109,4 +113,5 @@ public class TitheContributionService {
 
         return builder.build();
     }
+
 }

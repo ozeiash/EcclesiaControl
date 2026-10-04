@@ -36,7 +36,7 @@ public class DocumentGenerationService {
     @Transactional(readOnly = true)
     public byte[] generateTransferLetter(UUID memberId, TransferLetterRequest request, AuditActor actor) {
         Member member = findMemberOrThrow(memberId);
-        Tenant tenant = findTenantOrThrow();
+        Tenant tenant = findTenantOrThrow(member.getTenantId());
 
         Context context = new Context();
         context.setVariable("tenantName", tenant.getName());
@@ -62,7 +62,7 @@ public class DocumentGenerationService {
     @Transactional(readOnly = true)
     public byte[] generateCertificate(UUID memberId, CertificateRequest request, AuditActor actor) {
         Member member = findMemberOrThrow(memberId);
-        Tenant tenant = findTenantOrThrow();
+        Tenant tenant = findTenantOrThrow(member.getTenantId());
 
         Context context = new Context();
         context.setVariable("tenantName", tenant.getName());
@@ -117,8 +117,8 @@ public class DocumentGenerationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Membro não encontrado"));
     }
 
-    private Tenant findTenantOrThrow() {
-        return tenantRepository.findById(TenantContext.getTenantId())
+    private Tenant findTenantOrThrow(UUID tenantId) {
+        return tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Filial não encontrada"));
     }
 }

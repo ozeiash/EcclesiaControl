@@ -13,6 +13,7 @@ public class CreateAccountsPayableRequest {
     private UUID accountId;
 
     @NotBlank
+    @Size(max = 255)
     private String payeeName;
 
     @NotNull @DecimalMin(value = "0.01")
