@@ -5,9 +5,10 @@
       image: postgres:16-alpine
       container_name: ecclesiastic-postgres
       environment:
-        POSTGRES_DB: ecclesiastic_db
-        POSTGRES_USER: ecclesiastic_user
-        POSTGRES_PASSWORD: ecclesiastic_password
+        POSTGRES_DB: ${POSTGRES_DB}
+        POSTGRES_USER: ${POSTGRES_USER}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+        DB_HOST: postgres
       ports:
         - "5432:5432"
       volumes:
@@ -16,22 +17,24 @@
       networks:
         - ecclesiastic-network
       healthcheck:
-        test: ["CMD-SHELL", "pg_isready -U ecclesiastic_user"]
+        test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
         interval: 10s
         timeout: 5s
         retries: 5
 
     api:
       build:
-        context: ./backend
+        context: ./Backend
         dockerfile: Dockerfile
       container_name: ecclesiastic-api
       environment:
-        SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ecclesiastic_db
-        SPRING_DATASOURCE_USERNAME: ecclesiastic_user
-        SPRING_DATASOURCE_PASSWORD: ecclesiastic_password
+        POSTGRES_DB: ${POSTGRES_DB}
+        POSTGRES_USER: ${POSTGRES_USER}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+        DB_HOST: postgres
         SPRING_PROFILES_ACTIVE: dev
         JWT_SECRET: ${JWT_SECRET}
+        ENCRYPT_KEY: ${ENCRYPT_KEY}
       ports:
         - "8080:8080"
       depends_on:
@@ -39,12 +42,10 @@
           condition: service_healthy
       networks:
         - ecclesiastic-network
-      volumes:
-        - ./backend:/app
 
     web:
       build:
-        context: ./backend
+        context: ./Backend
         dockerfile: Dockerfile
       container_name: ecclesiastic-web
       ports:

@@ -2,6 +2,7 @@ package br.com.bitabit.ecclesiacontrol.member.service;
 
 import br.com.bitabit.ecclesiacontrol.core.exception.BusinessRuleException;
 import br.com.bitabit.ecclesiacontrol.core.exception.ResourceNotFoundException;
+import br.com.bitabit.ecclesiacontrol.core.security.CryptUtils;
 import br.com.bitabit.ecclesiacontrol.core.service.AuditActor;
 import br.com.bitabit.ecclesiacontrol.core.service.AuditService;
 import br.com.bitabit.ecclesiacontrol.core.util.TenantContext;
@@ -27,6 +28,14 @@ public class MemberService {
 
     @Transactional
     public MemberResponse create(MemberRequest request, AuditActor actor) {
+        String normalizedCpf = normalizeCpf(request.getCpf());
+        if (normalizedCpf != null) {
+            String hash = CryptUtils.hashForLookup(normalizedCpf);
+            if (memberRepository.existsByCpfHashAndMembershipStatusNot(hash, Member.MembershipStatus.DUPLICATE)) {
+                throw new BusinessRuleException("Já existe um membro cadastrado com esse CPF");
+            }
+        }
+
         Member member = new Member();
         mapper.applyRequest(member, request);
         member.setTenantId(TenantContext.getTenantId());
@@ -38,6 +47,11 @@ public class MemberService {
                 saved.getId(), null, mapper.toResponse(saved));
 
         return mapper.toResponse(saved);
+    }
+
+    private String normalizeCpf(String cpf) {
+        if (cpf == null || cpf.isBlank()) return null;
+        return cpf.replaceAll("\\D", "");
     }
 
     @Transactional(readOnly = true)
@@ -57,6 +71,15 @@ public class MemberService {
     public MemberResponse update(UUID id, MemberRequest request, AuditActor actor) {
         Member member = findEntityOrThrow(id);
         MemberResponse before = mapper.toResponse(member);
+
+        String normalizedCpf = normalizeCpf(request.getCpf());
+        if (normalizedCpf != null) {
+            String hash = CryptUtils.hashForLookup(normalizedCpf);
+            if (memberRepository.existsByCpfHashAndMembershipStatusNotAndIdNot(
+                    hash, Member.MembershipStatus.DUPLICATE, id)) {
+                throw new BusinessRuleException("Já existe um membro cadastrado com esse CPF");
+            }
+        }
 
         mapper.applyRequest(member, request);
         Member saved = memberRepository.save(member);

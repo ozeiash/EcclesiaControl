@@ -13,5 +13,7 @@ import java.util.UUID;
 public interface MemberRepository extends TenantScopedRepository<Member, UUID> {
 
     Page<Member> findByMembershipStatus(Member.MembershipStatus status, Pageable pageable);
+    boolean existsByCpfHashAndMembershipStatusNot(String cpfHash, Member.MembershipStatus status);
+    boolean existsByCpfHashAndMembershipStatusNotAndIdNot(String cpfHash, Member.MembershipStatus status, UUID excludedId);
 
 }
