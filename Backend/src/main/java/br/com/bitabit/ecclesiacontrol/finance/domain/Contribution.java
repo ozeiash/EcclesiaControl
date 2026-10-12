@@ -11,9 +11,9 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "tithe_contributions")
+@Table(name = "contributions")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class TitheContribution extends TenantAwareEntity {
+public class Contribution extends TenantAwareEntity {
 
     @Id
     @UuidGenerator
