@@ -1,5 +1,6 @@
 package br.com.bitabit.ecclesiacontrol.finance.service;
 
+import br.com.bitabit.ecclesiacontrol.core.exception.BusinessRuleException;
 import br.com.bitabit.ecclesiacontrol.core.exception.ResourceNotFoundException;
 import br.com.bitabit.ecclesiacontrol.core.security.AuthenticatedUser;
 import br.com.bitabit.ecclesiacontrol.core.service.AuditActor;
@@ -31,6 +32,10 @@ public class FinancialTransactionService {
     @Transactional
     public FinancialTransactionResponse create(FinancialTransactionRequest request, AuditActor actor) {
         ChartOfAccount account = findAccountOrThrow(request.getAccountId());
+
+        if ("REPASSE".equals(account.getCategory())) {
+            throw new BusinessRuleException("Conta reservada ao fluxo de repasse entre filiais");
+        }
 
         FinancialTransaction transaction = FinancialTransaction.builder()
                 .account(account)
