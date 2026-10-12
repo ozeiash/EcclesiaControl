@@ -8,7 +8,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 @Data
-public class TitheContributionRequest {
+public class ContributionRequest {
     @NotNull
     private UUID accountId; // deve ser categoria DIZIMO ou OFERTA
 

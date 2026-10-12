@@ -9,7 +9,7 @@ import java.util.UUID;
 
 @Data
 @Builder
-public class TitheContributionResponse {
+public class ContributionResponse {
     private UUID id;
     private BigDecimal amount;
     private LocalDate transactionDate;

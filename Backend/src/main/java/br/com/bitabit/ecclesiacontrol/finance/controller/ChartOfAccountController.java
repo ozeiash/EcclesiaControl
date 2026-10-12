@@ -23,6 +23,7 @@ public class ChartOfAccountController {
     @PreAuthorize("hasAuthority('PERM_FINANCE_READ')")
     public ResponseEntity<List<ChartOfAccountResponse>> findAllActive() {
         var accounts = accountRepository.findByActiveTrue().stream()
+                .filter(a -> !"REPASSE".equals(a.getCategory()))
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(accounts);

@@ -33,6 +33,10 @@ public class AccountsPayableService {
     public AccountsPayableResponse create(CreateAccountsPayableRequest request, AuditActor actor) {
         ChartOfAccount account = transactionService.findAccountOrThrow(request.getAccountId());
 
+        if ("REPASSE".equals(account.getCategory())) {
+            throw new BusinessRuleException("Conta reservada ao fluxo de repasse entre filiais");
+        }
+
         AccountsPayable payable = AccountsPayable.builder()
                 .account(account)
                 .payeeName(request.getPayeeName())
