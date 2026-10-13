@@ -12,6 +12,9 @@ import org.springframework.stereotype.Repository;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.Lock;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -21,4 +24,6 @@ public interface AccountsPayableRepository extends TenantScopedRepository<Accoun
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from AccountsPayable p where p.id = :id")
     Optional<AccountsPayable> findByIdForUpdate(@Param("id") UUID id);
+    @Query("select sum(p.amount) from AccountsPayable p where p.status in :statuses and p.dueDate <= :limit")
+    BigDecimal sumAmount(@Param("statuses") Collection<PayableStatus> statuses, @Param("limit") LocalDate limit);
 }
