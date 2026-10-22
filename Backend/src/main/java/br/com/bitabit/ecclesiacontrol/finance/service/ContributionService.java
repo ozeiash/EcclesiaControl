@@ -34,6 +34,7 @@ public class ContributionService {
     private final FinancialTransactionService transactionService;
     private final TenantGuard tenantGuard;
     private final AuditService auditService;
+    private final PeriodGuard periodGuard;
 
     @Transactional
     public ContributionResponse create(ContributionRequest request, AuditActor actor) {
@@ -87,6 +88,8 @@ public class ContributionService {
         Contribution contribution = contributionRepository.findById(contributionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Contribuição não encontrada"));
         tenantGuard.requireSameTenant(contribution, "Contribuição");
+
+        periodGuard.requireOpen(contribution.getTenantId(), contribution.getTransaction().getTransactionDate());
 
         Member member = memberRepository.findById(request.getMemberId())
                 .orElseThrow(() -> new ResourceNotFoundException("Membro não encontrado"));

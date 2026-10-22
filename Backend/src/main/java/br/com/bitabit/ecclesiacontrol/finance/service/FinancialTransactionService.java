@@ -28,6 +28,7 @@ public class FinancialTransactionService {
     private final FinancialTransactionRepository transactionRepository;
     private final ChartOfAccountRepository accountRepository;
     private final AuditService auditService;
+    private final PeriodGuard periodGuard;
 
     @Transactional
     public FinancialTransactionResponse create(FinancialTransactionRequest request, AuditActor actor) {
@@ -48,7 +49,7 @@ public class FinancialTransactionService {
                 .build();
         transaction.setTenantId(TenantContext.getTenantId());
 
-        FinancialTransaction saved = transactionRepository.save(transaction);
+        FinancialTransaction saved = save(transaction);
 
         auditService.log(actor, TenantContext.getTenantId(), "CREATE_FINANCIAL_TRANSACTION",
                 "FinancialTransaction", saved.getId(), null, toResponse(saved));
@@ -82,6 +83,8 @@ public class FinancialTransactionService {
 
     @Transactional
     public FinancialTransaction save(FinancialTransaction transaction) {
+        periodGuard.requireOpen(transaction.getTenantId(), transaction.getTransactionDate());
         return transactionRepository.save(transaction);
     }
+
 }
