@@ -71,4 +71,18 @@ public interface FinancialTransactionRepository extends TenantScopedRepository<F
     """)
     List<TenantTypeTotalView> totalsByTenant(@Param("start") LocalDate start, @Param("end") LocalDate end,
                                              @Param("consolidated") boolean consolidated);
+
+    interface PeriodTotalView { TransactionType getType(); BigDecimal getTotal(); Long getCnt(); }
+
+    @Query("""
+    select ft.type as type, sum(ft.amount) as total, count(ft) as cnt
+      from FinancialTransaction ft
+     where ft.tenantId = :tenantId and ft.transactionDate between :start and :end
+     group by ft.type
+    """)
+    List<PeriodTotalView> periodTotals(@Param("tenantId") UUID tenantId,
+                                       @Param("start") LocalDate start, @Param("end") LocalDate end);
+
+    @Query("select min(ft.transactionDate) from FinancialTransaction ft where ft.tenantId = :tenantId")
+    LocalDate earliestTransactionDate(@Param("tenantId") UUID tenantId);
 }
