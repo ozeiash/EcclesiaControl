@@ -111,4 +111,29 @@ class AccountingPeriodServiceTest extends AbstractRepositoryTest {
         assertThatThrownBy(() -> periodGuard.requireOpen(filial.getId(), m1.atDay(5)))
                 .isInstanceOf(BusinessRuleException.class);          // continua fechado
     }
+
+    @Test
+    void startMonthCannotBeAfterTheEarliestTransaction() {
+        assertThatThrownBy(() -> service.setStartMonth(m2, null)).isInstanceOf(BusinessRuleException.class);
+    }
+
+    @Test
+    void startMonthCannotChangeWhileAPeriodIsClosed() {
+        service.close(m1, null);
+        assertThatThrownBy(() -> service.setStartMonth(m1.minusMonths(1), null))
+                .isInstanceOf(BusinessRuleException.class);
+    }
+
+    @Test
+    void configuredStartDefinesFirstClosingAndRejectsEarlierDates() {
+        YearMonth start = m1.minusMonths(1);          // mês sem movimento
+        service.setStartMonth(start, null);
+
+        periodGuard.requireOpen(filial.getId(), m1.atDay(5));   // a partir do início, aceita
+        assertThatThrownBy(() -> periodGuard.requireOpen(filial.getId(), start.minusMonths(1).atDay(5)))
+                .isInstanceOf(BusinessRuleException.class);          // antes do início, recusa
+
+        assertThat(service.close(start, null).getStatus()).isEqualTo("FECHADO");   // fecha mesmo vazio
+        assertThat(service.close(m1, null).getStatus()).isEqualTo("FECHADO");
+    }
 }

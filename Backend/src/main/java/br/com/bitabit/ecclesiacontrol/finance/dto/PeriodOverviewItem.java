@@ -16,4 +16,5 @@ public class PeriodOverviewItem {
     private BigDecimal totalIncome;
     private BigDecimal totalExpense;
     private LocalDateTime closedAt;
+    private String accountingStart;
 }

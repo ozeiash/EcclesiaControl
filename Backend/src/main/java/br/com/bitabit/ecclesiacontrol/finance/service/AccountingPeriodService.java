@@ -1,7 +1,7 @@
 package br.com.bitabit.ecclesiacontrol.finance.service;
 
-
 import br.com.bitabit.ecclesiacontrol.core.exception.BusinessRuleException;
+import br.com.bitabit.ecclesiacontrol.core.exception.ResourceNotFoundException;
 import br.com.bitabit.ecclesiacontrol.core.service.AuditActor;
 import br.com.bitabit.ecclesiacontrol.core.service.AuditService;
 import br.com.bitabit.ecclesiacontrol.core.util.TenantContext;
@@ -12,6 +12,7 @@ import br.com.bitabit.ecclesiacontrol.finance.domain.PeriodStatus;
 import br.com.bitabit.ecclesiacontrol.finance.domain.TransactionType;
 import br.com.bitabit.ecclesiacontrol.finance.dto.PeriodOverviewItem;
 import br.com.bitabit.ecclesiacontrol.finance.dto.PeriodResponse;
+import br.com.bitabit.ecclesiacontrol.finance.dto.StartMonthResponse;
 import br.com.bitabit.ecclesiacontrol.finance.repository.AccountingPeriodEventRepository;
 import br.com.bitabit.ecclesiacontrol.finance.repository.AccountingPeriodRepository;
 import br.com.bitabit.ecclesiacontrol.finance.repository.FinancialTransactionRepository;
@@ -51,9 +52,41 @@ public class AccountingPeriodService {
     @Value("${app.finance.closing-grace-days:10}")
     private int graceDays;
 
+    @Transactional(readOnly = true)
+    public StartMonthResponse getStartMonth() {
+        return toStartResponse(findTenant(TenantContext.getTenantId()));
+    }
+
+    @Transactional
+    public StartMonthResponse setStartMonth(YearMonth month, AuditActor actor) {
+        UUID tenantId = TenantContext.getTenantId();
+        Tenant tenant = findTenant(tenantId);
+
+        if (month.isAfter(YearMonth.now(ZONE))) {
+            throw new BusinessRuleException("O início da escrituração não pode ser um mês futuro");
+        }
+        if (periodRepository.findFirstByTenantIdAndStatusOrderByReferenceMonthDesc(tenantId, PeriodStatus.FECHADO).isPresent()) {
+            throw new BusinessRuleException("Existem períodos fechados; reabra-os antes de alterar o início da escrituração");
+        }
+        LocalDate earliest = transactionRepository.earliestTransactionDate(tenantId);
+        if (earliest != null && month.isAfter(YearMonth.from(earliest))) {
+            throw new BusinessRuleException("Existem lançamentos em " + YearMonth.from(earliest)
+                    + ", anteriores ao mês informado");
+        }
+
+        String previous = tenant.getAccountingStartMonth() != null
+                ? YearMonth.from(tenant.getAccountingStartMonth()).toString() : "NAO_CONFIGURADO";
+        tenant.setAccountingStartMonth(month.atDay(1));
+        tenantRepository.save(tenant);
+
+        auditService.log(actor, tenantId, "SET_ACCOUNTING_START", "Tenant", tenantId, previous, month.toString());
+        return toStartResponse(tenant);
+    }
+
     @Transactional
     public PeriodResponse close(YearMonth month, AuditActor actor) {
         UUID tenantId = TenantContext.getTenantId();
+        Tenant tenant = findTenant(tenantId);
         LocalDate start = month.atDay(1);
 
         if (!LocalDate.now(ZONE).isAfter(month.atEndOfMonth())) {
@@ -66,6 +99,7 @@ public class AccountingPeriodService {
         }
 
         LocalDate earliest = transactionRepository.earliestTransactionDate(tenantId);
+        YearMonth bookStart = bookStart(tenant, earliest);
         Optional<AccountingPeriod> latestClosed = periodRepository
                 .findFirstByTenantIdAndStatusOrderByReferenceMonthDesc(tenantId, PeriodStatus.FECHADO);
 
@@ -74,9 +108,11 @@ public class AccountingPeriodService {
             if (!month.equals(expected)) {
                 throw new BusinessRuleException("Os períodos fecham em ordem: o próximo a fechar é " + expected);
             }
-        } else if (earliest != null && !month.equals(YearMonth.from(earliest))) {
-            throw new BusinessRuleException(
-                    "O primeiro fechamento deve ser o do mês mais antigo com movimento: " + YearMonth.from(earliest));
+        } else if (bookStart != null && !month.equals(bookStart)) {
+            throw new BusinessRuleException("O primeiro fechamento deve ser "
+                    + (tenant.getAccountingStartMonth() != null
+                    ? "o do início da escrituração: " : "o do mês mais antigo com movimento: ")
+                    + bookStart);
         }
 
         BigDecimal income = BigDecimal.ZERO;
@@ -105,19 +141,20 @@ public class AccountingPeriodService {
         auditService.log(actor, tenantId, "CLOSE_PERIOD", "AccountingPeriod", saved.getId(), null,
                 Map.of("month", month.toString(), "income", income, "expense", expense));
 
-        return toResponse(month, saved, earliest);
+        return toResponse(month, saved, bookStart);
     }
 
     @Transactional
     public List<PeriodResponse> reopen(YearMonth month, String reason, AuditActor actor) {
         UUID tenantId = TenantContext.getTenantId();
+        Tenant tenant = findTenant(tenantId);
         LocalDate start = month.atDay(1);
 
         AccountingPeriod target = periodRepository.findByTenantIdAndReferenceMonth(tenantId, start)
                 .filter(p -> p.getStatus() == PeriodStatus.FECHADO)
                 .orElseThrow(() -> new BusinessRuleException("O período " + month + " não está fechado"));
 
-        LocalDate earliest = transactionRepository.earliestTransactionDate(tenantId);
+        YearMonth bookStart = bookStart(tenant, transactionRepository.earliestTransactionDate(tenantId));
         List<PeriodResponse> reopened = new ArrayList<>();
 
         // Cascata: reabrir um mês reabre todos os posteriores, para os números não ficarem inconsistentes
@@ -132,7 +169,7 @@ public class AccountingPeriodService {
             p.setClosedAt(null);
             p.setClosedBy(null);
             periodRepository.save(p);
-            reopened.add(toResponse(YearMonth.from(p.getReferenceMonth()), p, earliest));
+            reopened.add(toResponse(YearMonth.from(p.getReferenceMonth()), p, bookStart));
         }
 
         auditService.log(actor, tenantId, "REOPEN_PERIOD", "AccountingPeriod", target.getId(), null,
@@ -144,14 +181,14 @@ public class AccountingPeriodService {
     @Transactional(readOnly = true)
     public List<PeriodResponse> listYear(int year) {
         UUID tenantId = TenantContext.getTenantId();
-        LocalDate earliest = transactionRepository.earliestTransactionDate(tenantId);
+        YearMonth bookStart = bookStart(findTenant(tenantId), transactionRepository.earliestTransactionDate(tenantId));
         Map<LocalDate, AccountingPeriod> byMonth = periodRepository
                 .findByTenantIdAndReferenceMonthBetween(tenantId, LocalDate.of(year, 1, 1), LocalDate.of(year, 12, 1))
                 .stream().collect(Collectors.toMap(AccountingPeriod::getReferenceMonth, p -> p));
 
         return IntStream.rangeClosed(1, 12).mapToObj(m -> {
             YearMonth ym = YearMonth.of(year, m);
-            return toResponse(ym, byMonth.get(ym.atDay(1)), earliest);
+            return toResponse(ym, byMonth.get(ym.atDay(1)), bookStart);
         }).toList();
     }
 
@@ -170,12 +207,25 @@ public class AccountingPeriodService {
                 .sorted(Comparator.comparing(Tenant::getName))
                 .map(t -> {
                     PeriodResponse r = toResponse(month, periods.get(t.getId()),
-                            transactionRepository.earliestTransactionDate(t.getId()));
+                            bookStart(t, transactionRepository.earliestTransactionDate(t.getId())));
                     return PeriodOverviewItem.builder()
                             .filialId(t.getId()).filialName(t.getName()).status(r.getStatus())
+                            .accountingStart(t.getAccountingStartMonth() != null
+                                    ? YearMonth.from(t.getAccountingStartMonth()).toString() : null)
                             .totalIncome(r.getTotalIncome()).totalExpense(r.getTotalExpense())
                             .closedAt(r.getClosedAt()).build();
                 }).toList();
+    }
+
+    private Tenant findTenant(UUID id) {
+        return tenantRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Filial não encontrada"));
+    }
+
+    // Início configurado manda; sem ele, vale o mês do lançamento mais antigo
+    private YearMonth bookStart(Tenant tenant, LocalDate earliest) {
+        if (tenant.getAccountingStartMonth() != null) return YearMonth.from(tenant.getAccountingStartMonth());
+        return earliest != null ? YearMonth.from(earliest) : null;
     }
 
     private void record(PeriodEventType type, AccountingPeriod p, String reason, boolean cascaded, AuditActor actor) {
@@ -192,11 +242,11 @@ public class AccountingPeriodService {
         eventRepository.save(e);
     }
 
-    private PeriodResponse toResponse(YearMonth month, AccountingPeriod p, LocalDate earliest) {
+    private PeriodResponse toResponse(YearMonth month, AccountingPeriod p, YearMonth bookStart) {
         boolean closed = p != null && p.getStatus() == PeriodStatus.FECHADO;
         return PeriodResponse.builder()
                 .month(month.toString())
-                .status(closed ? "FECHADO" : (isLate(month, earliest) ? "ATRASADO" : "ABERTO"))
+                .status(closed ? "FECHADO" : (isLate(month, bookStart) ? "ATRASADO" : "ABERTO"))
                 .totalIncome(closed ? p.getTotalIncome() : null)
                 .totalExpense(closed ? p.getTotalExpense() : null)
                 .transactionCount(closed ? p.getTransactionCount() : null)
@@ -204,10 +254,17 @@ public class AccountingPeriodService {
                 .build();
     }
 
-    // Atrasado só faz sentido a partir do primeiro mês com movimento
-    private boolean isLate(YearMonth month, LocalDate earliest) {
-        return earliest != null
-                && !month.isBefore(YearMonth.from(earliest))
+    private boolean isLate(YearMonth month, YearMonth bookStart) {
+        return bookStart != null
+                && !month.isBefore(bookStart)
                 && LocalDate.now(ZONE).isAfter(month.atEndOfMonth().plusDays(graceDays));
+    }
+
+    private StartMonthResponse toStartResponse(Tenant t) {
+        return StartMonthResponse.builder()
+                .configured(t.getAccountingStartMonth() != null)
+                .accountingStartMonth(t.getAccountingStartMonth() != null
+                        ? YearMonth.from(t.getAccountingStartMonth()).toString() : null)
+                .build();
     }
 }
