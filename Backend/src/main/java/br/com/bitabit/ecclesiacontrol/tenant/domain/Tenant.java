@@ -9,6 +9,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.annotations.UuidGenerator;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -69,6 +70,9 @@ public class Tenant {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Column(name = "accounting_start_month")
+    private LocalDate accountingStartMonth;
 
     public enum TenantType {
         SEDE, FILIAL, CONGREGACAO, DEPARTAMENTO

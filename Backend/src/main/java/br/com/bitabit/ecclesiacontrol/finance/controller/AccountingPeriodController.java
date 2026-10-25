@@ -2,9 +2,7 @@ package br.com.bitabit.ecclesiacontrol.finance.controller;
 
 import br.com.bitabit.ecclesiacontrol.core.security.AuthenticatedUser;
 import br.com.bitabit.ecclesiacontrol.core.service.AuditActor;
-import br.com.bitabit.ecclesiacontrol.finance.dto.PeriodOverviewItem;
-import br.com.bitabit.ecclesiacontrol.finance.dto.PeriodResponse;
-import br.com.bitabit.ecclesiacontrol.finance.dto.ReopenPeriodRequest;
+import br.com.bitabit.ecclesiacontrol.finance.dto.*;
 import br.com.bitabit.ecclesiacontrol.finance.service.AccountingPeriodService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -52,5 +50,18 @@ public class AccountingPeriodController {
             @RequestBody @Valid ReopenPeriodRequest request,
             @AuthenticationPrincipal AuthenticatedUser principal) {
         return ResponseEntity.ok(periodService.reopen(month, request.getReason(), AuditActor.from(principal)));
+    }
+
+    @GetMapping("/start-month")
+    @PreAuthorize("hasAuthority('PERM_FINANCE_READ')")
+    public ResponseEntity<StartMonthResponse> startMonth() {
+        return ResponseEntity.ok(periodService.getStartMonth());
+    }
+
+    @PutMapping("/start-month")
+    @PreAuthorize("hasAuthority('PERM_PERIOD_SETUP')")
+    public ResponseEntity<StartMonthResponse> setStartMonth(@RequestBody @Valid SetStartMonthRequest request,
+                                                            @AuthenticationPrincipal AuthenticatedUser principal) {
+        return ResponseEntity.ok(periodService.setStartMonth(request.getMonth(), AuditActor.from(principal)));
     }
 }
