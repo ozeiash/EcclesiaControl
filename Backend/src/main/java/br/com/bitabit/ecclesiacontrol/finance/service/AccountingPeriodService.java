@@ -196,7 +196,7 @@ public class AccountingPeriodService {
     @Transactional(readOnly = true)
     public List<PeriodOverviewItem> overview(YearMonth month) {
         List<Tenant> tenants = TenantContext.isGlobalScope()
-                ? tenantRepository.findAll()   // se o Tenant tiver flag de ativo, filtrem as inativas aqui
+                ? tenantRepository.findByIsActiveTrue()   // se o Tenant tiver flag de ativo, filtrem as inativas aqui
                 : tenantRepository.findById(TenantContext.getTenantId()).map(List::of).orElse(List.of());
 
         Map<UUID, AccountingPeriod> periods = periodRepository
@@ -223,7 +223,7 @@ public class AccountingPeriodService {
     }
 
     // Início configurado manda; sem ele, vale o mês do lançamento mais antigo
-    private YearMonth bookStart(Tenant tenant, LocalDate earliest) {
+    static YearMonth bookStart(Tenant tenant, LocalDate earliest) {
         if (tenant.getAccountingStartMonth() != null) return YearMonth.from(tenant.getAccountingStartMonth());
         return earliest != null ? YearMonth.from(earliest) : null;
     }

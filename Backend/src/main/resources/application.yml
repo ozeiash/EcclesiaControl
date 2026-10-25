@@ -44,6 +44,8 @@ jwt:
 app:
   finance:
     closing-grace-days: 10
+  dashboard:
+    max-months: 24
 
 server:
   port: 8080
