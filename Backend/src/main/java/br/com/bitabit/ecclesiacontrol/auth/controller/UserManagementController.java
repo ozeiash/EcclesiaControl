@@ -13,6 +13,10 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import br.com.bitabit.ecclesiacontrol.auth.domain.User;
 
 @RestController
 @RequestMapping("/users")
@@ -37,4 +41,20 @@ public class UserManagementController {
         var assignment = userManagementService.assignRole(userId, request, principal);
         return ResponseEntity.status(HttpStatus.CREATED).body(assignment);
     }
+
+    @GetMapping
+    @PreAuthorize("hasAuthority('PERM_USER_MANAGE')")
+    public Page<UserSummaryResponse> list(
+            @RequestParam(required = false) UUID filialId,
+            @RequestParam(required = false) User.UserStatus status,
+            @PageableDefault(sort = "fullName") Pageable pageable) {
+        return userManagementService.listUsers(filialId, status, pageable);
+    }
+
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('PERM_USER_MANAGE')")
+    public UserDetailResponse detail(@PathVariable UUID id) {
+        return userManagementService.getUser(id);
+    }
+
 }

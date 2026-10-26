@@ -20,7 +20,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
+import org.springframework.data.domain.*;
 import br.com.bitabit.ecclesiacontrol.core.security.AuthenticatedUser;
 
 @Service
@@ -36,6 +38,7 @@ public class UserManagementService {
 
     @Transactional
     public UserResponse createUser(CreateUserRequest request, AuditActor actor) {
+        request.setEmail(normalizeEmail(request.getEmail()));
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new BusinessRuleException("Já existe um usuário com esse e-mail");
         }
@@ -62,8 +65,7 @@ public class UserManagementService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
 
-        if (request.getRole() == Role.RoleName.SUPER_ADMIN && principal.getAuthorities().stream()
-                .noneMatch(a -> a.getAuthority().equals("ROLE_SUPER_ADMIN"))) {
+        if (request.getRole() == Role.RoleName.SUPER_ADMIN && !isSuperAdmin(principal)) {
             throw new AccessForbiddenException("Só um administrador geral pode atribuir o papel de administrador geral");
         }
         AuditActor actor = AuditActor.from(principal);
@@ -116,6 +118,61 @@ public class UserManagementService {
                 .role(role.getName().name())
                 .scope(role.getScope().name())
                 .build();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<UserSummaryResponse> listUsers(UUID filialId, User.UserStatus status, Pageable pageable) {
+        if (!TenantContext.isGlobalScope()) {
+            if (filialId != null && !filialId.equals(TenantContext.getTenantId())) {
+                throw new AccessForbiddenException("Você só pode gerenciar usuários da sua própria filial");
+            }
+            filialId = TenantContext.getTenantId();
+        }
+        Page<User> page = userRepository.findManagedUsers(filialId, status, pageable);
+        Map<UUID, List<UserFilialRole>> roles = page.isEmpty() ? Map.of() :
+                userFilialRoleRepository.findByUserIn(page.getContent()).stream()
+                        .collect(Collectors.groupingBy(r -> r.getUser().getId()));
+        return page.map(u -> UserSummaryResponse.builder().id(u.getId()).email(u.getEmail())
+                .fullName(u.getFullName()).phone(u.getPhone()).status(u.getStatus().name())
+                .lastLogin(u.getLastLogin()).roles(visibleRoles(roles.getOrDefault(u.getId(), List.of()))).build());
+    }
+
+    @Transactional(readOnly = true)
+    public UserDetailResponse getUser(UUID id) {
+        User user = findUser(id);
+        List<UserFilialRole> roles = userFilialRoleRepository.findByUser(user);
+        if (!TenantContext.isGlobalScope() && !belongsToActiveFilial(user, roles)) {
+            throw new ResourceNotFoundException("Usuário não encontrado");
+        }
+        return detail(user, roles);
+    }
+
+    private User findUser(UUID id) {
+        return userRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
+    }
+
+    private boolean belongsToActiveFilial(User user, List<UserFilialRole> roles) {
+        return user.getTenant().getId().equals(TenantContext.getTenantId()) || roles.stream()
+                .anyMatch(r -> r.getFilial().getId().equals(TenantContext.getTenantId()));
+    }
+
+    private boolean isSuperAdmin(AuthenticatedUser principal) {
+        return principal.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_SUPER_ADMIN"));
+    }
+
+    private String normalizeEmail(String email) { return email.trim().toLowerCase(Locale.ROOT); }
+
+    private List<UserRoleAssignmentResponse> visibleRoles(List<UserFilialRole> roles) {
+        return roles.stream().filter(r -> TenantContext.isGlobalScope() || r.getFilial().getId().equals(TenantContext.getTenantId()))
+                .map(r -> UserRoleAssignmentResponse.builder().id(r.getId()).filialId(r.getFilial().getId())
+                        .filialName(r.getFilial().getName()).role(r.getRole().getName().name()).scope(r.getRole().getScope().name()).build()).toList();
+    }
+
+    private UserDetailResponse detail(User user, List<UserFilialRole> roles) {
+        return UserDetailResponse.builder().id(user.getId()).email(user.getEmail()).fullName(user.getFullName())
+                .phone(user.getPhone()).status(user.getStatus().name()).lastLogin(user.getLastLogin())
+                .createdAt(user.getCreatedAt()).updatedAt(user.getUpdatedAt()).homeFilialId(user.getTenant().getId())
+                .homeFilialName(user.getTenant().getName()).roles(visibleRoles(roles)).build();
     }
 
     private UserResponse toResponse(User user) {
