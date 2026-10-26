@@ -40,6 +40,9 @@ public class User {
     @Column(name = "full_name")
     private String fullName;
 
+    @Column(name = "member_id")
+    private UUID memberId;
+
     @Column(name = "phone")
     private String phone;
 

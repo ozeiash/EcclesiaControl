@@ -11,6 +11,10 @@ import java.util.UUID;
 @Builder
 public class MemberResponse {
     private UUID id;
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS)
+    private UUID userId;
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS)
+    private String userStatus;
     private String fullName;
     private String socialName;
     private LocalDate birthDate;

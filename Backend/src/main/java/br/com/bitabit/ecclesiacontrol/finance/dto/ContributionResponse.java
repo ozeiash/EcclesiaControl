@@ -15,7 +15,7 @@ public class ContributionResponse {
     private LocalDate transactionDate;
     private String accountName;
     private boolean anonymous;
-    // Preenchidos só se o ator tiver PERM_TITHE_DETAIL_READ — nulos caso contrário
+    // Preenchidos com PERM_TITHE_DETAIL_READ ou no acesso do próprio membro pelo portal.
     private UUID memberId;
     private String memberName;
 }

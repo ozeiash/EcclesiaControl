@@ -9,6 +9,8 @@ import java.time.LocalDateTime;
 @Builder
 public class UserDetailResponse {
     private UUID id;
+    private UUID memberId;
+    private String memberName;
     private String email;
     private String fullName;
     private String phone;

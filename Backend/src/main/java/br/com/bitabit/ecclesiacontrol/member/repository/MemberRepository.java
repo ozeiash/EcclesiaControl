@@ -17,6 +17,15 @@ import java.util.UUID;
 @Repository
 public interface MemberRepository extends TenantScopedRepository<Member, UUID> {
 
+    interface MemberNameView { UUID getId(); String getFullName(); }
+
+    @Query("select m.id as id, m.fullName as fullName from Member m where m.id in :ids")
+    List<MemberNameView> findNamesByIdIn(@Param("ids") List<UUID> ids);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select m from Member m where m.id = :id")
+    java.util.Optional<Member> findForUserLink(@Param("id") UUID id);
+
     interface StatusCountView { Member.MembershipStatus getStatus(); Long getTotal(); }
     interface TenantCountView { UUID getTenantId(); Long getTotal(); }
 

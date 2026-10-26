@@ -42,6 +42,21 @@ public class UserManagementController {
         return ResponseEntity.status(HttpStatus.CREATED).body(assignment);
     }
 
+    @PutMapping("/{id}/member")
+    @PreAuthorize("hasAuthority('PERM_USER_MANAGE')")
+    public UserDetailResponse linkMember(@PathVariable UUID id, @RequestBody @Valid LinkMemberRequest request,
+                                          @AuthenticationPrincipal AuthenticatedUser principal) {
+        return userManagementService.linkMember(id, request, principal);
+    }
+
+    @DeleteMapping("/{id}/member")
+    @PreAuthorize("hasAuthority('PERM_USER_MANAGE')")
+    public ResponseEntity<Void> unlinkMember(@PathVariable UUID id,
+                                              @AuthenticationPrincipal AuthenticatedUser principal) {
+        userManagementService.unlinkMember(id, principal);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping
     @PreAuthorize("hasAuthority('PERM_USER_MANAGE')")
     public Page<UserSummaryResponse> list(

@@ -11,6 +11,11 @@ import br.com.bitabit.ecclesiacontrol.member.dto.*;
 import br.com.bitabit.ecclesiacontrol.member.mapper.MemberMapper;
 import br.com.bitabit.ecclesiacontrol.member.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
+import br.com.bitabit.ecclesiacontrol.auth.domain.User;
+import br.com.bitabit.ecclesiacontrol.auth.repository.UserRepository;
+import br.com.bitabit.ecclesiacontrol.auth.service.RefreshTokenService;
+import org.springframework.security.core.context.SecurityContextHolder;
+import java.util.Map;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -25,6 +30,8 @@ public class MemberService {
     private final MemberRepository memberRepository;
     private final MemberMapper mapper;
     private final AuditService auditService;
+    private final UserRepository userRepository;
+    private final RefreshTokenService refreshTokenService;
 
     @Transactional
     public MemberResponse create(MemberRequest request, AuditActor actor) {
@@ -46,7 +53,7 @@ public class MemberService {
         auditService.log(actor, TenantContext.getTenantId(), "CREATE_MEMBER", "Member",
                 saved.getId(), null, mapper.toResponse(saved));
 
-        return mapper.toResponse(saved);
+        return responseWithAccess(saved);
     }
 
     private String normalizeCpf(String cpf) {
@@ -56,7 +63,7 @@ public class MemberService {
 
     @Transactional(readOnly = true)
     public MemberResponse findById(UUID id) {
-        return mapper.toResponse(findEntityOrThrow(id));
+        return responseWithAccess(findEntityOrThrow(id));
     }
 
     @Transactional(readOnly = true)
@@ -87,7 +94,7 @@ public class MemberService {
         auditService.log(actor, TenantContext.getTenantId(), "UPDATE_MEMBER", "Member",
                 saved.getId(), before, mapper.toResponse(saved));
 
-        return mapper.toResponse(saved);
+        return responseWithAccess(saved);
     }
 
     @Transactional
@@ -104,11 +111,35 @@ public class MemberService {
         member.setExitWay(request.getExitWay());
 
         Member saved = memberRepository.save(member);
+        if (saved.getMembershipStatus() == Member.MembershipStatus.FALECIDO) {
+            userRepository.findByMemberId(saved.getId()).ifPresent(user -> {
+                User.UserStatus previousStatus = user.getStatus();
+                user.setStatus(User.UserStatus.INACTIVE);
+                userRepository.save(user);
+                refreshTokenService.revokeAllForUser(user);
+                auditService.log(actor, saved.getTenantId(), "UPDATE_USER_STATUS", "User", user.getId(),
+                        Map.of("status", previousStatus),
+                        Map.of("status", user.getStatus(), "reason", "MEMBER_DECEASED"));
+            });
+        }
 
         auditService.log(actor, TenantContext.getTenantId(), "UPDATE_MEMBER_STATUS", "Member",
                 saved.getId(), before, saved.getMembershipStatus());
 
-        return mapper.toResponse(saved);
+        return responseWithAccess(saved);
+    }
+
+    private MemberResponse responseWithAccess(Member member) {
+        MemberResponse response = mapper.toResponse(member);
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("PERM_USER_MANAGE"))) {
+            userRepository.findByMemberId(member.getId()).ifPresent(user -> {
+                response.setUserId(user.getId());
+                response.setUserStatus(user.getStatus().name());
+            });
+        }
+        return response;
     }
 
     private Member findEntityOrThrow(UUID id) {

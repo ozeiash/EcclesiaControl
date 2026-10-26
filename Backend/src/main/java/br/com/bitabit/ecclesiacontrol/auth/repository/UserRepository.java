@@ -22,6 +22,12 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Query("SELECT u FROM User u WHERE u.tenant.id = ?1")
     List<User> findAllByTenant(UUID tenantId);
 
+    Optional<User> findByMemberId(UUID memberId);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from User u where u.id = :id")
+    Optional<User> findForMemberLink(@Param("id") UUID id);
+
     boolean existsByEmailIgnoreCaseAndIdNot(String email, UUID id);
 
     @Query(value = "select u from User u where (:filialId is null or u.tenant.id = :filialId or exists (select 1 from UserFilialRole r where r.user = u and r.filial.id = :filialId)) and (:status is null or u.status = :status)",

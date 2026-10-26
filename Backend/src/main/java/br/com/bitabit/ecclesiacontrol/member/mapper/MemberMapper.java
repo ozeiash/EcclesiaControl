@@ -2,6 +2,7 @@ package br.com.bitabit.ecclesiacontrol.member.mapper;
 
 import br.com.bitabit.ecclesiacontrol.member.domain.Member;
 import br.com.bitabit.ecclesiacontrol.member.dto.MemberRequest;
+import br.com.bitabit.ecclesiacontrol.member.dto.MyMemberResponse;
 import br.com.bitabit.ecclesiacontrol.member.dto.MemberResponse;
 import br.com.bitabit.ecclesiacontrol.member.dto.MemberSummaryResponse;
 import org.springframework.stereotype.Component;
@@ -79,6 +80,20 @@ public class MemberMapper {
                 .createdAt(m.getCreatedAt())
                 .updatedAt(m.getUpdatedAt())
                 .build();
+    }
+
+    public MyMemberResponse toMyResponse(Member m, String filialName) {
+        // Explicit allowlist: CPF and RG must never be included in the member portal.
+        return MyMemberResponse.builder()
+                .id(m.getId()).fullName(m.getFullName()).socialName(m.getSocialName())
+                .birthDate(m.getBirthDate()).gender(m.getGender()).email(m.getEmail())
+                .phonePrimary(m.getPhonePrimary()).phoneSecondary(m.getPhoneSecondary())
+                .postalCode(m.getPostalCode()).street(m.getStreet()).number(m.getNumber())
+                .complement(m.getComplement()).neighborhood(m.getNeighborhood()).city(m.getCity()).state(m.getState())
+                .membershipStatus(m.getMembershipStatus().name()).admissionDate(m.getAdmissionDate())
+                .baptized(m.isBaptized()).baptismDate(m.getBaptismDate()).maritalStatus(m.getMaritalStatus())
+                .weddingDate(m.getWeddingDate()).currentRole(m.getCurrentRole()).photoUrl(m.getPhotoUrl())
+                .filialName(filialName).build();
     }
 
     public MemberSummaryResponse toSummary(Member m) {

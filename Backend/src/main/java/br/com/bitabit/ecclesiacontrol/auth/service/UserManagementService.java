@@ -16,6 +16,8 @@ import br.com.bitabit.ecclesiacontrol.core.util.TenantContext;
 import br.com.bitabit.ecclesiacontrol.tenant.domain.Tenant;
 import br.com.bitabit.ecclesiacontrol.tenant.repository.TenantRepository;
 import lombok.RequiredArgsConstructor;
+import br.com.bitabit.ecclesiacontrol.member.domain.Member;
+import br.com.bitabit.ecclesiacontrol.member.repository.MemberRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +38,7 @@ public class UserManagementService {
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
     private final RefreshTokenService refreshTokenService;
+    private final MemberRepository memberRepository;
 
     @Transactional
     public UserResponse createUser(CreateUserRequest request, AuditActor actor) {
@@ -43,6 +46,8 @@ public class UserManagementService {
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new BusinessRuleException("Já existe um usuário com esse e-mail");
         }
+
+        if (request.getMemberId() != null) validateMemberLink(request.getMemberId(), null);
 
         Tenant homeTenant = tenantRepository.findById(TenantContext.getTenantId())
                 .orElseThrow(() -> new ResourceNotFoundException("Filial não encontrada"));
@@ -52,12 +57,14 @@ public class UserManagementService {
                 .fullName(request.getFullName())
                 .passwordHash(passwordEncoder.encode(request.getInitialPassword()))
                 .tenant(homeTenant)
+                .memberId(request.getMemberId())
                 .status(User.UserStatus.ACTIVE)
                 .build());
 
         auditService.log(actor, TenantContext.getTenantId(), "CREATE_USER", "User",
                 user.getId(), null, request.getEmail());
 
+        if (user.getMemberId() != null) logMemberLink(user, actor);
         return toResponse(user);
     }
 
@@ -133,7 +140,9 @@ public class UserManagementService {
         Map<UUID, List<UserFilialRole>> roles = page.isEmpty() ? Map.of() :
                 userFilialRoleRepository.findByUserIn(page.getContent()).stream()
                         .collect(Collectors.groupingBy(r -> r.getUser().getId()));
+        Map<UUID, String> memberNames = visibleMemberNames(page.getContent());
         return page.map(u -> UserSummaryResponse.builder().id(u.getId()).email(u.getEmail())
+                .memberId(u.getMemberId()).memberName(memberNames.get(u.getMemberId()))
                 .fullName(u.getFullName()).phone(u.getPhone()).status(u.getStatus().name())
                 .lastLogin(u.getLastLogin()).roles(visibleRoles(roles.getOrDefault(u.getId(), List.of()))).build());
     }
@@ -204,6 +213,64 @@ public class UserManagementService {
         auditService.log(AuditActor.from(principal), TenantContext.getTenantId(), "RESET_PASSWORD", "User", id, null, Map.of("id", id));
     }
 
+    @Transactional
+    public UserDetailResponse linkMember(UUID id, LinkMemberRequest request, AuthenticatedUser principal) {
+        // Serialize concurrent links on the same account; the member row lock below
+        // serializes two different accounts trying to claim the same member.
+        userRepository.findForMemberLink(id).orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
+        User user = manageableUser(id, principal);
+        if (user.getMemberId() != null && !user.getMemberId().equals(request.getMemberId())) {
+            throw new BusinessRuleException("Este usuário já está vinculado a outra ficha; desvincule antes");
+        }
+        validateMemberLink(request.getMemberId(), user.getId());
+        if (user.getMemberId() == null) {
+            user.setMemberId(request.getMemberId());
+            userRepository.saveAndFlush(user);
+            logMemberLink(user, AuditActor.from(principal));
+        }
+        return detail(user, userFilialRoleRepository.findByUser(user));
+    }
+
+    @Transactional
+    public void unlinkMember(UUID id, AuthenticatedUser principal) {
+        userRepository.findForMemberLink(id).orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
+        User user = manageableUser(id, principal);
+        if (user.getMemberId() == null) {
+            throw new BusinessRuleException("Este usuário não está vinculado a uma ficha de membro");
+        }
+        UUID memberId = user.getMemberId();
+        user.setMemberId(null);
+        userRepository.saveAndFlush(user);
+        auditService.log(AuditActor.from(principal), TenantContext.getTenantId(), "UNLINK_USER_MEMBER", "User", id,
+                Map.of("userId", id, "memberId", memberId), null);
+    }
+
+    private void validateMemberLink(UUID memberId, UUID userId) {
+        Member member = memberRepository.findForUserLink(memberId)
+                .filter(m -> TenantContext.isGlobalScope() || m.getTenantId().equals(TenantContext.getTenantId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Membro não encontrado"));
+        if (member.getMembershipStatus() == Member.MembershipStatus.FALECIDO
+                || member.getMembershipStatus() == Member.MembershipStatus.DUPLICATE) {
+            throw new BusinessRuleException("Não é possível dar acesso a um membro com situação Falecido ou Duplicado");
+        }
+        userRepository.findByMemberId(memberId).filter(u -> !u.getId().equals(userId)).ifPresent(u -> {
+            throw new BusinessRuleException("Este membro já está vinculado ao usuário " + u.getEmail());
+        });
+    }
+
+    private void logMemberLink(User user, AuditActor actor) {
+        auditService.log(actor, TenantContext.getTenantId(), "LINK_USER_MEMBER", "User", user.getId(), null,
+                Map.of("userId", user.getId(), "memberId", user.getMemberId()));
+    }
+
+    private Map<UUID, String> visibleMemberNames(List<User> users) {
+        List<UUID> ids = users.stream().map(User::getMemberId).filter(Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) return Collections.emptyMap();
+        // Projection fetches all names in one tenant-filtered query, without loading CPF/RG.
+        return memberRepository.findNamesByIdIn(ids).stream().collect(Collectors.toMap(
+                MemberRepository.MemberNameView::getId, MemberRepository.MemberNameView::getFullName));
+    }
+
     private User findUser(UUID id) {
         return userRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
     }
@@ -244,7 +311,8 @@ public class UserManagementService {
     }
 
     private UserDetailResponse detail(User user, List<UserFilialRole> roles) {
-        return UserDetailResponse.builder().id(user.getId()).email(user.getEmail()).fullName(user.getFullName())
+        return UserDetailResponse.builder().id(user.getId()).email(user.getEmail())
+                .memberId(user.getMemberId()).memberName(visibleMemberNames(List.of(user)).get(user.getMemberId())).fullName(user.getFullName())
                 .phone(user.getPhone()).status(user.getStatus().name()).lastLogin(user.getLastLogin())
                 .createdAt(user.getCreatedAt()).updatedAt(user.getUpdatedAt()).homeFilialId(user.getTenant().getId())
                 .homeFilialName(user.getTenant().getName()).roles(visibleRoles(roles)).build();
