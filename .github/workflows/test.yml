@@ -24,7 +24,8 @@ jobs:
     env:
       POSTGRES_USER: ecclesiastic_user
       POSTGRES_PASSWORD: ecclesiastic_password
-      ENCRYPT_KEY: dGVzdC1vbmx5LWVuY3J5cHRpb24ta2V5LWZvci1jaS1waXBlbGluZSE=
+      # Test-only AES-256 key (32 bytes after Base64 decoding).
+      ENCRYPT_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
 
     steps:
       - uses: actions/checkout@v3
