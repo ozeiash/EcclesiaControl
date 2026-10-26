@@ -57,4 +57,33 @@ public class UserManagementController {
         return userManagementService.getUser(id);
     }
 
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('PERM_USER_MANAGE')")
+    public UserDetailResponse update(@PathVariable UUID id, @RequestBody @Valid UpdateUserRequest request,
+                                    @AuthenticationPrincipal AuthenticatedUser principal) {
+        return userManagementService.updateUser(id, request, principal);
+    }
+
+    @PatchMapping("/{id}/status")
+    @PreAuthorize("hasAuthority('PERM_USER_MANAGE')")
+    public UserDetailResponse status(@PathVariable UUID id, @RequestBody @Valid UpdateUserStatusRequest request,
+                                    @AuthenticationPrincipal AuthenticatedUser principal) {
+        return userManagementService.updateStatus(id, request, principal);
+    }
+
+    @DeleteMapping("/{userId}/roles/{assignmentId}")
+    @PreAuthorize("hasAuthority('PERM_USER_MANAGE')")
+    public ResponseEntity<Void> removeRole(@PathVariable UUID userId, @PathVariable UUID assignmentId,
+                                           @AuthenticationPrincipal AuthenticatedUser principal) {
+        userManagementService.removeRole(userId, assignmentId, principal);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/reset-password")
+    @PreAuthorize("hasAuthority('PERM_USER_MANAGE')")
+    public ResponseEntity<Void> resetPassword(@PathVariable UUID id, @RequestBody @Valid ResetPasswordRequest request,
+                                             @AuthenticationPrincipal AuthenticatedUser principal) {
+        userManagementService.resetPassword(id, request, principal);
+        return ResponseEntity.noContent().build();
+    }
 }

@@ -35,6 +35,7 @@ public class UserManagementService {
     private final UserFilialRoleRepository userFilialRoleRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
+    private final RefreshTokenService refreshTokenService;
 
     @Transactional
     public UserResponse createUser(CreateUserRequest request, AuditActor actor) {
@@ -147,8 +148,78 @@ public class UserManagementService {
         return detail(user, roles);
     }
 
+    @Transactional
+    public UserDetailResponse updateUser(UUID id, UpdateUserRequest request, AuthenticatedUser principal) {
+        User user = manageableUser(id, principal);
+        String email = normalizeEmail(request.getEmail());
+        if (userRepository.existsByEmailIgnoreCaseAndIdNot(email, id)) {
+            throw new BusinessRuleException("Já existe um usuário com esse e-mail");
+        }
+        var before = detail(user, userFilialRoleRepository.findByUser(user));
+        user.setFullName(request.getFullName());
+        user.setEmail(email);
+        user.setPhone(request.getPhone());
+        userRepository.saveAndFlush(user);
+        var after = detail(user, userFilialRoleRepository.findByUser(user));
+        auditService.log(AuditActor.from(principal), TenantContext.getTenantId(), "UPDATE_USER", "User", id, before, after);
+        return after;
+    }
+
+    @Transactional
+    public UserDetailResponse updateStatus(UUID id, UpdateUserStatusRequest request, AuthenticatedUser principal) {
+        rejectSelf(id, principal);
+        User user = manageableUser(id, principal);
+        var before = user.getStatus();
+        user.setStatus(request.getStatus());
+        userRepository.saveAndFlush(user);
+        if (user.getStatus() != User.UserStatus.ACTIVE) refreshTokenService.revokeAllForUser(user);
+        auditService.log(AuditActor.from(principal), TenantContext.getTenantId(), "UPDATE_USER_STATUS", "User", id,
+                Map.of("status", before), Map.of("status", user.getStatus()));
+        return detail(user, userFilialRoleRepository.findByUser(user));
+    }
+
+    @Transactional
+    public void removeRole(UUID id, UUID assignmentId, AuthenticatedUser principal) {
+        rejectSelf(id, principal);
+        User user = manageableUser(id, principal);
+        UserFilialRole assignment = userFilialRoleRepository.findById(assignmentId)
+                .filter(r -> r.getUser().getId().equals(user.getId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Papel não encontrado para este usuário"));
+        if (!TenantContext.isGlobalScope() && (!assignment.getFilial().getId().equals(TenantContext.getTenantId())
+                || assignment.getRole().getScope() != Role.RoleScope.LOCAL)) {
+            throw new AccessForbiddenException("Este usuário tem acesso em outras filiais ou na sede; peça à sede para alterá-lo");
+        }
+        userFilialRoleRepository.delete(assignment);
+        auditService.log(AuditActor.from(principal), TenantContext.getTenantId(), "REMOVE_ROLE", "User", id,
+                Map.of("filialId", assignment.getFilial().getId(), "role", assignment.getRole().getName()), null);
+    }
+
+    @Transactional
+    public void resetPassword(UUID id, ResetPasswordRequest request, AuthenticatedUser principal) {
+        rejectSelf(id, principal);
+        User user = manageableUser(id, principal);
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+        refreshTokenService.revokeAllForUser(user);
+        auditService.log(AuditActor.from(principal), TenantContext.getTenantId(), "RESET_PASSWORD", "User", id, null, Map.of("id", id));
+    }
+
     private User findUser(UUID id) {
         return userRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
+    }
+
+    private User manageableUser(UUID id, AuthenticatedUser principal) {
+        User user = findUser(id);
+        var roles = userFilialRoleRepository.findByUser(user);
+        if (TenantContext.isGlobalScope()) {
+            if (!isSuperAdmin(principal) && roles.stream().anyMatch(r -> r.getRole().getName() == Role.RoleName.SUPER_ADMIN)) {
+                throw new AccessForbiddenException("Só um administrador geral pode alterar outro administrador geral");
+            }
+        } else if (!belongsToActiveFilial(user, roles) || roles.stream().anyMatch(r ->
+                r.getRole().getScope() == Role.RoleScope.GLOBAL || !r.getFilial().getId().equals(TenantContext.getTenantId()))) {
+            throw new AccessForbiddenException("Este usuário tem acesso em outras filiais ou na sede; peça à sede para alterá-lo");
+        }
+        return user;
     }
 
     private boolean belongsToActiveFilial(User user, List<UserFilialRole> roles) {
@@ -158,6 +229,10 @@ public class UserManagementService {
 
     private boolean isSuperAdmin(AuthenticatedUser principal) {
         return principal.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_SUPER_ADMIN"));
+    }
+
+    private void rejectSelf(UUID id, AuthenticatedUser principal) {
+        if (id.equals(principal.getUserId())) throw new BusinessRuleException("Você não pode alterar a sua própria conta por aqui");
     }
 
     private String normalizeEmail(String email) { return email.trim().toLowerCase(Locale.ROOT); }
