@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
+import br.com.bitabit.ecclesiacontrol.core.security.AuthenticatedUser;
 
 @Service
 @RequiredArgsConstructor
@@ -57,10 +58,15 @@ public class UserManagementService {
     }
 
     @Transactional
-    public UserRoleAssignmentResponse assignRole(UUID userId, AssignRoleRequest request, AuditActor actor) {
+    public UserRoleAssignmentResponse assignRole(UUID userId, AssignRoleRequest request, AuthenticatedUser principal) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
 
+        if (request.getRole() == Role.RoleName.SUPER_ADMIN && principal.getAuthorities().stream()
+                .noneMatch(a -> a.getAuthority().equals("ROLE_SUPER_ADMIN"))) {
+            throw new AccessForbiddenException("Só um administrador geral pode atribuir o papel de administrador geral");
+        }
+        AuditActor actor = AuditActor.from(principal);
         Role role = roleRepository.findByName(request.getRole())
                 .orElseThrow(() -> new ResourceNotFoundException("Papel não encontrado"));
 

@@ -34,7 +34,7 @@ public class UserManagementController {
     public ResponseEntity<UserRoleAssignmentResponse> assignRole(@PathVariable UUID userId,
                                                                  @RequestBody @Valid AssignRoleRequest request,
                                                                  @AuthenticationPrincipal AuthenticatedUser principal) {
-        var assignment = userManagementService.assignRole(userId, request, AuditActor.from(principal));
+        var assignment = userManagementService.assignRole(userId, request, principal);
         return ResponseEntity.status(HttpStatus.CREATED).body(assignment);
     }
 }
