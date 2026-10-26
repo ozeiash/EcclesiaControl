@@ -17,6 +17,9 @@ import java.util.UUID;
 @Repository
 public interface UserFilialRoleRepository extends JpaRepository<UserFilialRole, UUID> {
 
+    @Query("select r from UserFilialRole r join fetch r.role role join fetch r.filial left join fetch role.permissions where r.user in :users")
+    List<UserFilialRole> findByUserIn(@Param("users") List<User> users);
+
     /**
      * Buscar todos os papéis de um usuário (em todas as filiais)
      */
