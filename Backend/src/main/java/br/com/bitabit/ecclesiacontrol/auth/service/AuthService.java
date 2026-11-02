@@ -53,6 +53,8 @@ public class AuthService {
             throw new AuthenticationFailedException("Credenciais inválidas");
         }
 
+        requireActive(user);
+
         var userFilialRoles = userFilialRoleRepository.findByUser(user);
         if (userFilialRoles.isEmpty()) {
             throw new BusinessRuleException("Usuário não possui filiais associadas");
@@ -90,6 +92,7 @@ public class AuthService {
     public LoginResponse refreshAccessToken(String rawRefreshToken) {
         RefreshToken oldToken = refreshTokenService.validateAndConsume(rawRefreshToken);
         User user = oldToken.getUser();
+        requireActive(user);
 
         String newAccessToken = jwtTokenProvider.generateToken(
                 user.getEmail(), oldToken.getFilialId(), oldToken.getScope());
@@ -134,6 +137,12 @@ public class AuthService {
                 .tokenType("Bearer")
                 .expiresIn(3600L)
                 .build();
+    }
+
+    private void requireActive(User user) {
+        if (user.getStatus() != User.UserStatus.ACTIVE) {
+            throw new AuthenticationFailedException("Usuário inativo. Procure a secretaria da sua igreja.");
+        }
     }
 
     private Set<String> extractRoles(java.util.List<UserFilialRole> userFilialRoles) {

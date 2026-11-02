@@ -25,6 +25,6 @@ logging:
 
 # JWT Configuration for Tests
 jwt:
-  secret: test-secret-key-for-testing-purposes-minimum-256-bits-long
+  secret: test-only-jwt-secret-for-hs512-at-least-64-ascii-characters-0123456789abcdef
   expiration: 3600000
   refresh-expiration: 604800000

@@ -34,6 +34,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             UUID tenantId = jwtTokenProvider.getTenantIdFromToken(token); // ← precisa ler o tenant do token aqui também
             var userDetails = userDetailsService.loadUserByEmailAndFilial(email, tenantId); // ← método certo
 
+            if (!userDetails.isEnabled()) {
+                SecurityContextHolder.clearContext();
+                filterChain.doFilter(request, response);
+                return;
+            }
+
             var authentication = new UsernamePasswordAuthenticationToken(
                     userDetails, null, userDetails.getAuthorities());
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
