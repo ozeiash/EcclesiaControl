@@ -69,4 +69,6 @@ public interface TenantRepository extends JpaRepository<Tenant, UUID> {
      */
     @Query("SELECT t FROM Tenant t WHERE t.parentTenantId = :parentId OR t.id = :parentId")
     List<Tenant> findTenantAndDescendants(@Param("parentId") UUID parentId);
+
+    List<Tenant> findByIsActiveTrue();
 }

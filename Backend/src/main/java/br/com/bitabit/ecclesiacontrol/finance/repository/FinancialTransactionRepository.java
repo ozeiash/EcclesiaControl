@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -85,4 +86,35 @@ public interface FinancialTransactionRepository extends TenantScopedRepository<F
 
     @Query("select min(ft.transactionDate) from FinancialTransaction ft where ft.tenantId = :tenantId")
     LocalDate earliestTransactionDate(@Param("tenantId") UUID tenantId);
+
+    @Query("""
+    select ft.type as type, sum(ft.amount) as total
+      from FinancialTransaction ft
+     where ft.tenantId in :tenantIds and ft.transactionDate between :start and :end
+       and (:eliminate = false or ft.account.category <> 'REPASSE')
+     group by ft.type
+    """)
+    List<TypeTotalView> officialTotalsByType(@Param("tenantIds") Collection<UUID> tenantIds,
+                                             @Param("start") LocalDate start, @Param("end") LocalDate end, @Param("eliminate") boolean eliminate);
+
+    @Query("""
+    select ft.account.code as code, ft.account.name as name, ft.type as type, sum(ft.amount) as total
+      from FinancialTransaction ft
+     where ft.tenantId in :tenantIds and ft.transactionDate between :start and :end
+       and (:eliminate = false or ft.account.category <> 'REPASSE')
+     group by ft.account.code, ft.account.name, ft.type
+     order by ft.account.code
+    """)
+    List<AccountTotalView> officialTotalsByAccount(@Param("tenantIds") Collection<UUID> tenantIds,
+                                                   @Param("start") LocalDate start, @Param("end") LocalDate end, @Param("eliminate") boolean eliminate);
+
+    @Query("""
+    select ft.tenantId as tenantId, ft.type as type, sum(ft.amount) as total
+      from FinancialTransaction ft
+     where ft.tenantId in :tenantIds and ft.transactionDate between :start and :end
+       and (:eliminate = false or ft.account.category <> 'REPASSE')
+     group by ft.tenantId, ft.type
+    """)
+    List<TenantTypeTotalView> officialTotalsByTenant(@Param("tenantIds") Collection<UUID> tenantIds,
+                                                     @Param("start") LocalDate start, @Param("end") LocalDate end, @Param("eliminate") boolean eliminate);
 }

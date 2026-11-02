@@ -23,4 +23,8 @@ public interface AccountingPeriodRepository extends TenantScopedRepository<Accou
     List<AccountingPeriod> findByTenantIdAndReferenceMonthBetween(UUID tenantId, LocalDate from, LocalDate to);
 
     List<AccountingPeriod> findByTenantIdInAndReferenceMonth(Collection<UUID> tenantIds, LocalDate referenceMonth);
+
+    List<AccountingPeriod> findByTenantIdInAndReferenceMonthBetweenAndStatus(
+            Collection<UUID> tenantIds, LocalDate from, LocalDate to, PeriodStatus status);
 }
+
