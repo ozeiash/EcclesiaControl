@@ -1,5 +1,6 @@
 package br.com.bitabit.ecclesiacontrol.finance.service;
 
+import br.com.bitabit.ecclesiacontrol.core.exception.BusinessRuleException;
 import br.com.bitabit.ecclesiacontrol.core.testsupport.AbstractRepositoryTest;
 import br.com.bitabit.ecclesiacontrol.core.util.TenantContext;
 import br.com.bitabit.ecclesiacontrol.finance.domain.*;
@@ -9,20 +10,14 @@ import br.com.bitabit.ecclesiacontrol.finance.repository.ChartOfAccountRepositor
 import br.com.bitabit.ecclesiacontrol.finance.repository.FinancialTransactionRepository;
 import br.com.bitabit.ecclesiacontrol.tenant.domain.Tenant;
 import br.com.bitabit.ecclesiacontrol.tenant.repository.TenantRepository;
-import br.com.bitabit.ecclesiacontrol.core.exception.BusinessRuleException;
-import br.com.bitabit.ecclesiacontrol.finance.service.OfficialDashboardService;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-
 import org.springframework.context.annotation.Import;
+import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-
 import java.time.YearMonth;
-
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -30,11 +25,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Import(OfficialDashboardService.class)
 class OfficialDashboardServiceTest extends AbstractRepositoryTest {
 
-    @Autowired private OfficialDashboardService service;
+    @Autowired
+    private OfficialDashboardService service;
     @Autowired private AccountingPeriodRepository periodRepository;
     @Autowired private FinancialTransactionRepository transactionRepository;
-    @Autowired
-    private ChartOfAccountRepository accountRepository;
+    @Autowired private ChartOfAccountRepository accountRepository;
     @Autowired private TenantRepository tenantRepository;
 
     private YearMonth m1, m2;
@@ -127,5 +122,37 @@ class OfficialDashboardServiceTest extends AbstractRepositoryTest {
         p.setTotalExpense(BigDecimal.ZERO);
         p.setTransactionCount(count);
         periodRepository.save(p);
+    }
+
+    @Test
+    void localScopeKeepsRepasseAsRealExpenseWhileConsolidatedEliminatesIt() {
+        ChartOfAccount repasse = accountRepository.findAll().stream()
+                .filter(a -> a.getCode().equals("DESP-003")).findFirst().orElseThrow();
+        expense(filialA, repasse, m1, "40.00");
+        closed(filialA, m1, 2);
+        closed(filialA, m2, 1);
+        closed(filialB, m1, 1);
+        closed(filialB, m2, 1);
+
+        TenantContext.setGlobalScope(false);
+        TenantContext.setTenantId(filialA.getId());
+        var local = service.officialFinance(m1, m2);
+        assertThat(local.isConsolidated()).isFalse();
+        assertThat(local.getByFilial()).isEmpty();
+        assertThat(local.getTotalIncome()).isEqualByComparingTo("150.00");
+        assertThat(local.getTotalExpense()).isEqualByComparingTo("40.00");   // repasse é despesa real da filial
+
+        TenantContext.setGlobalScope(true);
+        var global = service.officialFinance(m1, m2);
+        assertThat(global.getTotalIncome()).isEqualByComparingTo("520.00");  // 150 (A) + 370 (B)
+        assertThat(global.getTotalExpense()).isEqualByComparingTo("0");      // eliminado no consolidado
+    }
+
+    private void expense(Tenant t, ChartOfAccount account, YearMonth month, String amount) {
+        FinancialTransaction ft = FinancialTransaction.builder().account(account)
+                .type(TransactionType.DESPESA).amount(new BigDecimal(amount))
+                .transactionDate(month.atDay(10)).build();
+        ft.setTenantId(t.getId());
+        transactionRepository.save(ft);
     }
 }
