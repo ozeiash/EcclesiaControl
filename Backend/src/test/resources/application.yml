@@ -28,3 +28,7 @@ jwt:
   secret: test-only-jwt-secret-for-hs512-at-least-64-ascii-characters-0123456789abcdef
   expiration: 3600000
   refresh-expiration: 604800000
+
+app:
+  cors:
+    allowed-origins: "http://localhost:3000,http://localhost:8080,http://localhost:8081"
