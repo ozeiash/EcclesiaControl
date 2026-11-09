@@ -44,6 +44,8 @@ jwt:
 app:
   finance:
     closing-grace-days: 10
+  cors:
+    allowed-origins: "http://localhost:3000,http://localhost:8080,http://localhost:8081"
   dashboard:
     max-months: 24
 

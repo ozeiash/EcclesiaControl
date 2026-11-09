@@ -38,14 +38,14 @@ public class AuthController {
     @PostMapping("/switch-filial")
     public ResponseEntity<LoginResponse> switchFilial(@AuthenticationPrincipal UserDetails userDetails,
                                                       @RequestBody @Valid SwitchFilialRequest request) {
-        User user = userRepository.findByEmail(userDetails.getUsername())
+        User user = userRepository.findByEmailIgnoreCase(userDetails.getUsername())
                 .orElseThrow(() -> new AuthenticationFailedException("Credenciais inválidas"));
         return ResponseEntity.ok(authService.switchFilial(user.getId(), request.getTargetFilialId()));
     }
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@AuthenticationPrincipal UserDetails userDetails) {
-        User user = userRepository.findByEmail(userDetails.getUsername())
+        User user = userRepository.findByEmailIgnoreCase(userDetails.getUsername())
                 .orElseThrow(() -> new AuthenticationFailedException("Credenciais inválidas"));
         refreshTokenService.revokeAllForUser(user);
         return ResponseEntity.noContent().build();

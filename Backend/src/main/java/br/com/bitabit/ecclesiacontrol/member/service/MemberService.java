@@ -44,8 +44,7 @@ public class MemberService {
         Member saved = memberRepository.save(member);
 
         auditService.log(actor, TenantContext.getTenantId(), "CREATE_MEMBER", "Member",
-                saved.getId(), null, mapper.toResponse(saved));
-
+                saved.getId(), null, forAudit(saved));
         return mapper.toResponse(saved);
     }
 
@@ -70,7 +69,7 @@ public class MemberService {
     @Transactional
     public MemberResponse update(UUID id, MemberRequest request, AuditActor actor) {
         Member member = findEntityOrThrow(id);
-        MemberResponse before = mapper.toResponse(member);
+        MemberResponse before = forAudit(member);
 
         String normalizedCpf = normalizeCpf(request.getCpf());
         if (normalizedCpf != null) {
@@ -85,8 +84,7 @@ public class MemberService {
         Member saved = memberRepository.save(member);
 
         auditService.log(actor, TenantContext.getTenantId(), "UPDATE_MEMBER", "Member",
-                saved.getId(), before, mapper.toResponse(saved));
-
+                saved.getId(), before, forAudit(saved));
         return mapper.toResponse(saved);
     }
 
@@ -114,5 +112,12 @@ public class MemberService {
     private Member findEntityOrThrow(UUID id) {
         return memberRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Membro não encontrado"));
+    }
+
+    private MemberResponse forAudit(Member m) {
+        MemberResponse r = mapper.toResponse(m);
+        r.setCpf(r.getCpf() != null ? "***" : null);
+        r.setRg(r.getRg() != null ? "***" : null);
+        return r;
     }
 }

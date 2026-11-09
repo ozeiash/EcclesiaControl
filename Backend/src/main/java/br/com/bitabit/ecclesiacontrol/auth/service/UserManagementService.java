@@ -16,6 +16,7 @@ import br.com.bitabit.ecclesiacontrol.core.util.TenantContext;
 import br.com.bitabit.ecclesiacontrol.tenant.domain.Tenant;
 import br.com.bitabit.ecclesiacontrol.tenant.repository.TenantRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,10 +38,32 @@ public class UserManagementService {
     private final AuditService auditService;
     private final RefreshTokenService refreshTokenService;
 
+    private static final Set<String> SORTABLE = Set.of("fullName", "email", "status", "lastLogin", "createdAt");
+    @Transactional(readOnly = true)
+    public Page<UserSummaryResponse> listUsers(UUID filialId, User.UserStatus status, Pageable pageable) {
+        pageable.getSort().forEach(o -> {
+            if (!SORTABLE.contains(o.getProperty()))
+                throw new BusinessRuleException("Ordenação não permitida: " + o.getProperty());
+        });
+        if (!TenantContext.isGlobalScope()) {
+            if (filialId != null && !filialId.equals(TenantContext.getTenantId())) {
+                throw new AccessForbiddenException("Você só pode gerenciar usuários da sua própria filial");
+            }
+            filialId = TenantContext.getTenantId();
+        }
+        Page<User> page = userRepository.findManagedUsers(filialId, status, pageable);
+        Map<UUID, List<UserFilialRole>> roles = page.isEmpty() ? Map.of() :
+                userFilialRoleRepository.findByUserIn(page.getContent()).stream()
+                        .collect(Collectors.groupingBy(r -> r.getUser().getId()));
+        return page.map(u -> UserSummaryResponse.builder().id(u.getId()).email(u.getEmail())
+                .fullName(u.getFullName()).phone(u.getPhone()).status(u.getStatus().name())
+                .lastLogin(u.getLastLogin()).roles(visibleRoles(roles.getOrDefault(u.getId(), List.of()))).build());
+    }
+
     @Transactional
     public UserResponse createUser(CreateUserRequest request, AuditActor actor) {
         request.setEmail(normalizeEmail(request.getEmail()));
-        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
+        if (userRepository.findByEmailIgnoreCase(request.getEmail()).isPresent()) {
             throw new BusinessRuleException("Já existe um usuário com esse e-mail");
         }
 
@@ -63,15 +86,20 @@ public class UserManagementService {
 
     @Transactional
     public UserRoleAssignmentResponse assignRole(UUID userId, AssignRoleRequest request, AuthenticatedUser principal) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
+        rejectSelf(userId, principal);
+        User user = manageableUser(userId, principal);
 
         if (request.getRole() == Role.RoleName.SUPER_ADMIN && !isSuperAdmin(principal)) {
             throw new AccessForbiddenException("Só um administrador geral pode atribuir o papel de administrador geral");
         }
+
         AuditActor actor = AuditActor.from(principal);
+
         Role role = roleRepository.findByName(request.getRole())
                 .orElseThrow(() -> new ResourceNotFoundException("Papel não encontrado"));
+
+        requireWithinCeiling(principal, List.of(role),
+                "Você não pode atribuir um papel com permissões que você mesmo não possui");
 
         UUID targetFilialId;
 
@@ -121,22 +149,6 @@ public class UserManagementService {
                 .build();
     }
 
-    @Transactional(readOnly = true)
-    public Page<UserSummaryResponse> listUsers(UUID filialId, User.UserStatus status, Pageable pageable) {
-        if (!TenantContext.isGlobalScope()) {
-            if (filialId != null && !filialId.equals(TenantContext.getTenantId())) {
-                throw new AccessForbiddenException("Você só pode gerenciar usuários da sua própria filial");
-            }
-            filialId = TenantContext.getTenantId();
-        }
-        Page<User> page = userRepository.findManagedUsers(filialId, status, pageable);
-        Map<UUID, List<UserFilialRole>> roles = page.isEmpty() ? Map.of() :
-                userFilialRoleRepository.findByUserIn(page.getContent()).stream()
-                        .collect(Collectors.groupingBy(r -> r.getUser().getId()));
-        return page.map(u -> UserSummaryResponse.builder().id(u.getId()).email(u.getEmail())
-                .fullName(u.getFullName()).phone(u.getPhone()).status(u.getStatus().name())
-                .lastLogin(u.getLastLogin()).roles(visibleRoles(roles.getOrDefault(u.getId(), List.of()))).build());
-    }
 
     @Transactional(readOnly = true)
     public UserDetailResponse getUser(UUID id) {
@@ -190,6 +202,7 @@ public class UserManagementService {
             throw new AccessForbiddenException("Este usuário tem acesso em outras filiais ou na sede; peça à sede para alterá-lo");
         }
         userFilialRoleRepository.delete(assignment);
+        refreshTokenService.revokeAllForUser(user);
         auditService.log(AuditActor.from(principal), TenantContext.getTenantId(), "REMOVE_ROLE", "User", id,
                 Map.of("filialId", assignment.getFilial().getId(), "role", assignment.getRole().getName()), null);
     }
@@ -219,6 +232,12 @@ public class UserManagementService {
                 r.getRole().getScope() == Role.RoleScope.GLOBAL || !r.getFilial().getId().equals(TenantContext.getTenantId()))) {
             throw new AccessForbiddenException("Este usuário tem acesso em outras filiais ou na sede; peça à sede para alterá-lo");
         }
+
+        requireWithinCeiling(
+                principal,
+                roles.stream().map(UserFilialRole::getRole).toList(),
+                "Este usuário tem permissões que você não possui; peça a quem as possui para alterá-lo"
+        );
         return user;
     }
 
@@ -257,5 +276,21 @@ public class UserManagementService {
                 .fullName(user.getFullName())
                 .status(user.getStatus().name())
                 .build();
+    }
+
+    private void requireWithinCeiling(AuthenticatedUser principal, Collection<Role> roles, String message) {
+        if (isSuperAdmin(principal)) return;
+
+        Set<String> mine = principal.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .collect(Collectors.toSet());
+
+        boolean within = roles.stream()
+                .flatMap(r -> r.getPermissions().stream())
+                .allMatch(p -> mine.contains("PERM_" + p.getCode()));
+
+        if (!within) {
+            throw new AccessForbiddenException(message);
+        }
     }
 }

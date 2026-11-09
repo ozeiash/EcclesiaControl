@@ -61,6 +61,15 @@ class UserManagementServiceTest extends AbstractIntegrationTest {
     LoginRequest login(String password) {
         LoginRequest request = new LoginRequest(); request.setEmail(target.getEmail()); request.setPassword(password); return request;
     }
+
+    AuthenticatedUser asSecretary() {
+        return new AuthenticatedUser(actor.getId(), actor.getEmail(), "", true, List.of(
+                new SimpleGrantedAuthority("ROLE_SECRETARIO_FILIAL"),
+                new SimpleGrantedAuthority("PERM_MEMBER_READ"),
+                new SimpleGrantedAuthority("PERM_MEMBER_WRITE"),
+                new SimpleGrantedAuthority("PERM_USER_MANAGE")));
+    }
+
     @Test void listsByMembershipAndHomeAndFiltersGlobally() {
         User foreign = user(other);
         User linked = user(other); role(linked, home, Role.RoleName.MEMBRO);
@@ -171,4 +180,52 @@ class UserManagementServiceTest extends AbstractIntegrationTest {
         mvc.perform(delete("/users/"+target.getId()+"/roles/"+foreign.getId()).header("Authorization", token)).andExpect(status().isForbidden());
         mvc.perform(get("/users").param("filialId",other.getId().toString()).header("Authorization",token)).andExpect(status().isForbidden());
     }
+
+    @Test void cannotTakeOverAMorePrivilegedUserInTheSameFilial() {
+        role(target, home, Role.RoleName.TESOUREIRO_FILIAL);
+        assertThatThrownBy(() -> service.resetPassword(target.getId(),
+                ResetPasswordRequest.builder().newPassword("newpassword123").build(), asSecretary()))
+                .isInstanceOf(AccessForbiddenException.class);
+    }
+
+    @Test void cannotAssignARoleBeyondOwnPermissions() {
+        var request = new AssignRoleRequest();
+        request.setRole(Role.RoleName.TESOUREIRO_FILIAL);
+        assertThatThrownBy(() -> service.assignRole(target.getId(), request, asSecretary()))
+                .isInstanceOf(AccessForbiddenException.class);
+    }
+
+    @Test void assignRoleRejectsUsersWithAccessElsewhereAndSelf() {
+        role(target, other, Role.RoleName.MEMBRO);
+        var request = new AssignRoleRequest();
+        request.setRole(Role.RoleName.MEMBRO);
+        assertThatThrownBy(() -> service.assignRole(target.getId(), request, asSecretary()))
+                .isInstanceOf(AccessForbiddenException.class);
+        assertThatThrownBy(() -> service.assignRole(actor.getId(), request, asSecretary()))
+                .isInstanceOf(BusinessRuleException.class);
+    }
+
+    @Test void loginIgnoresEmailCase() throws Exception {
+        role(target, home, Role.RoleName.MEMBRO);
+        mvc.perform(post("/auth/login").contentType("application/json")
+                        .content("{\"email\":\"" + target.getEmail().toUpperCase(Locale.ROOT)
+                                + "\",\"password\":\"password123\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test void sortIsRestrictedToAllowedFields() throws Exception {
+        String token = actorToken(Role.RoleName.SUPER_ADMIN);
+        mvc.perform(get("/users").param("sort", "passwordHash").header("Authorization", token))
+                .andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test void changingTheEmailInvalidatesTokensIssuedWithTheOldOne() throws Exception {
+        String token = actorToken(Role.RoleName.SUPER_ADMIN);
+        mvc.perform(put("/users/" + actor.getId()).header("Authorization", token)
+                        .contentType("application/json")
+                        .content("{\"fullName\":\"Novo nome\",\"email\":\"novo-" + UUID.randomUUID() + "@teste.local\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(get("/users").header("Authorization", token)).andExpect(status().isUnauthorized());
+    }
+
 }

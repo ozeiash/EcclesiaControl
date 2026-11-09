@@ -16,10 +16,11 @@ public class LoginRequest {
 
     @Email(message = "Email deve ser válido")
     @NotBlank(message = "Email é obrigatório")
+    @Size(max = 255, message = "O email deve ter no máximo 255 caracteres")
     private String email;
 
     @NotBlank(message = "Senha é obrigatória")
-    @Size(min = 6, message = "Senha deve ter no mínimo 6 caracteres")
+    @Size(min = 6, max = 255, message = "A senha deve ter entre 6 e 255 caracteres")
     private String password;
 
 }

@@ -8,6 +8,7 @@ import jakarta.validation.constraints.*;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ResetPasswordRequest {
-    @NotBlank @Size(min = 8, message = "Senha deve ter no mínimo 8 caracteres")
+    @NotBlank
+    @Size(min = 6, max = 72, message = "A senha deve ter entre 6 e 72 caracteres")
     private String newPassword;
 }

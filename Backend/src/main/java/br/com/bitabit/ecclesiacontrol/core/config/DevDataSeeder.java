@@ -32,7 +32,7 @@ public class DevDataSeeder implements CommandLineRunner {
                         .email("sede@dev.local")
                         .build()));
 
-        User admin = userRepository.findByEmail("admin@dev.local")
+        User admin = userRepository.findByEmailIgnoreCase("admin@dev.local")
                 .orElseGet(() -> userRepository.save(User.builder()
                         .email("admin@dev.local")
                         .passwordHash(passwordEncoder.encode("admin123"))
@@ -73,7 +73,7 @@ public class DevDataSeeder implements CommandLineRunner {
         log.info("ID: {}", filialTeste.getId());
         log.info("==========================================");
 
-        User secretary = userRepository.findByEmail("secretaria@dev.local")
+        User secretary = userRepository.findByEmailIgnoreCase("secretaria@dev.local")
                 .orElseGet(() -> userRepository.save(User.builder()
                         .email("secretaria@dev.local")
                         .passwordHash(passwordEncoder.encode("secretaria123"))

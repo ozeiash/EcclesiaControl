@@ -46,7 +46,7 @@ public class AuthService {
      * Login inicial do usuário
      */
     public LoginResponse authenticate(LoginRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = userRepository.findByEmailIgnoreCase(request.getEmail().trim())
                 .orElseThrow(() -> new AuthenticationFailedException("Credenciais inválidas"));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
