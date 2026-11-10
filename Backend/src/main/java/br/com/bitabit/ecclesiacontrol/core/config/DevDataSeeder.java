@@ -1,7 +1,11 @@
 package br.com.bitabit.ecclesiacontrol.core.config;
 
-import br.com.bitabit.ecclesiacontrol.auth.domain.*;
-import br.com.bitabit.ecclesiacontrol.auth.repository.*;
+import br.com.bitabit.ecclesiacontrol.auth.domain.Role;
+import br.com.bitabit.ecclesiacontrol.auth.domain.User;
+import br.com.bitabit.ecclesiacontrol.auth.domain.UserFilialRole;
+import br.com.bitabit.ecclesiacontrol.auth.repository.RoleRepository;
+import br.com.bitabit.ecclesiacontrol.auth.repository.UserFilialRoleRepository;
+import br.com.bitabit.ecclesiacontrol.auth.repository.UserRepository;
 import br.com.bitabit.ecclesiacontrol.tenant.domain.Tenant;
 import br.com.bitabit.ecclesiacontrol.tenant.repository.TenantRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,35 +36,6 @@ public class DevDataSeeder implements CommandLineRunner {
                         .email("sede@dev.local")
                         .build()));
 
-        User admin = userRepository.findByEmailIgnoreCase("admin@dev.local")
-                .orElseGet(() -> userRepository.save(User.builder()
-                        .email("admin@dev.local")
-                        .passwordHash(passwordEncoder.encode("admin123"))
-                        .fullName("Administrador (Dev)")
-                        .tenant(sede)
-                        .status(User.UserStatus.ACTIVE)
-                        .build()));
-
-        Role superAdminRole = roleRepository.findByName(Role.RoleName.SUPER_ADMIN)
-                .orElseThrow(() -> new IllegalStateException(
-                        "Role SUPER_ADMIN não encontrada — rode a migration de seed de roles antes"));
-
-        boolean hasAssignment = userFilialRoleRepository.findByUserAndFilial(admin, sede.getId())
-                .stream().anyMatch(ufr -> ufr.getRole().getName() == Role.RoleName.SUPER_ADMIN);
-
-        if (!hasAssignment) {
-            userFilialRoleRepository.save(UserFilialRole.builder()
-                    .user(admin)
-                    .filial(sede)
-                    .role(superAdminRole)
-                    .build());
-            log.info("Vínculo SUPER_ADMIN criado para admin@dev.local");
-        }
-
-        log.info("=== USUÁRIO DE TESTE (DEV) DISPONÍVEL ===");
-        log.info("Email: admin@dev.local | Senha: admin123");
-        log.info("==========================================");
-
         Tenant filialTeste = tenantRepository.findByName("Filial Teste (Dev)")
                 .orElseGet(() -> tenantRepository.save(Tenant.builder()
                         .name("Filial Teste (Dev)")
@@ -69,38 +44,55 @@ public class DevDataSeeder implements CommandLineRunner {
                         .email("filial.teste@dev.local")
                         .build()));
 
-        log.info("=== FILIAL DE TESTE (DEV) DISPONÍVEL ===");
-        log.info("ID: {}", filialTeste.getId());
-        log.info("==========================================");
+        // Cada usuário é criado só se ainda não existir, então o seeder pode rodar
+        // várias vezes e também completa um banco de desenvolvimento já existente.
+        ensureUser("admin@dev.local", "admin123", "Administrador (Dev)",
+                sede, Role.RoleName.SUPER_ADMIN);
+        ensureUser("secretaria@dev.local", "secretaria123", "Secretária da Filial (Dev)",
+                filialTeste, Role.RoleName.SECRETARIO_FILIAL);
+        ensureUser("tesoureiro@dev.local", "tesoureiro123", "Tesoureiro da Filial (Dev)",
+                filialTeste, Role.RoleName.TESOUREIRO_FILIAL);
+        ensureUser("pastor@dev.local", "pastor123", "Pastor da Filial (Dev)",
+                filialTeste, Role.RoleName.PASTOR_FILIAL);
 
-        User secretary = userRepository.findByEmailIgnoreCase("secretaria@dev.local")
+        log.info("=== USUÁRIOS DE TESTE (DEV) DISPONÍVEIS ===");
+        log.info("admin@dev.local      | admin123      | SUPER_ADMIN       | Sede Geral (Dev)");
+        log.info("secretaria@dev.local | secretaria123 | SECRETARIO_FILIAL | Filial Teste (Dev)");
+        log.info("tesoureiro@dev.local | tesoureiro123 | TESOUREIRO_FILIAL | Filial Teste (Dev)");
+        log.info("pastor@dev.local     | pastor123     | PASTOR_FILIAL     | Filial Teste (Dev)");
+        log.info("ID da Filial Teste (Dev): {}", filialTeste.getId());
+        log.info("============================================");
+    }
+
+    /**
+     * Garante que o usuário existe e tem o papel indicado na filial informada.
+     * Idempotente: não duplica usuário nem vínculo.
+     */
+    private void ensureUser(String email, String rawPassword, String fullName,
+                            Tenant filial, Role.RoleName roleName) {
+        User user = userRepository.findByEmailIgnoreCase(email)
                 .orElseGet(() -> userRepository.save(User.builder()
-                        .email("secretaria@dev.local")
-                        .passwordHash(passwordEncoder.encode("secretaria123"))
-                        .fullName("Secretária da Filial (Dev)")
-                        .tenant(filialTeste)
+                        .email(email)
+                        .passwordHash(passwordEncoder.encode(rawPassword))
+                        .fullName(fullName)
+                        .tenant(filial)
                         .status(User.UserStatus.ACTIVE)
                         .build()));
 
-        Role secretarioFilialRole = roleRepository.findByName(Role.RoleName.SECRETARIO_FILIAL)
+        Role role = roleRepository.findByName(roleName)
                 .orElseThrow(() -> new IllegalStateException(
-                        "Role SECRETARIO_FILIAL não encontrada — confirme que a Migration V8 foi aplicada"));
+                        "Role " + roleName + " não encontrada — confirme que as migrations de roles foram aplicadas"));
 
-        boolean hasSecretaryAssignment = userFilialRoleRepository.findByUserAndFilial(secretary, filialTeste.getId())
-                .stream().anyMatch(ufr -> ufr.getRole().getName() == Role.RoleName.SECRETARIO_FILIAL);
+        boolean alreadyAssigned = userFilialRoleRepository.findByUserAndFilial(user, filial.getId())
+                .stream().anyMatch(ufr -> ufr.getRole().getName() == roleName);
 
-        if (!hasSecretaryAssignment) {
+        if (!alreadyAssigned) {
             userFilialRoleRepository.save(UserFilialRole.builder()
-                    .user(secretary)
-                    .filial(filialTeste)
-                    .role(secretarioFilialRole)
+                    .user(user)
+                    .filial(filial)
+                    .role(role)
                     .build());
-            log.info("Vínculo SECRETARIO_FILIAL criado para secretaria@dev.local");
+            log.info("Vínculo {} criado para {}", roleName, email);
         }
-
-        log.info("=== USUÁRIA SECRETÁRIA (DEV) DISPONÍVEL ===");
-        log.info("Email: secretaria@dev.local | Senha: secretaria123 | Filial: {}", filialTeste.getId());
-        log.info("==============================================");
     }
-
 }
