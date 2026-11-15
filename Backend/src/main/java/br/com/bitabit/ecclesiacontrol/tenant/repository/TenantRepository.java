@@ -71,4 +71,14 @@ public interface TenantRepository extends JpaRepository<Tenant, UUID> {
     List<Tenant> findTenantAndDescendants(@Param("parentId") UUID parentId);
 
     List<Tenant> findByIsActiveTrue();
+
+    boolean existsByNameIgnoreCase(String name);
+
+    boolean existsByNameIgnoreCaseAndIdNot(String name, UUID id);
+
+    boolean existsByCnpj(String cnpj);
+
+    boolean existsByCnpjAndIdNot(String cnpj, UUID id);
+
+    Optional<Tenant> findFirstByType(Tenant.TenantType type);
 }
