@@ -174,7 +174,7 @@ public class MemberPortalService {
 
     // ------------------------------------------------------------ apoio
 
-    private Member currentMember(AuthenticatedUser principal) {
+    public Member currentMember(AuthenticatedUser principal) {
         User user = userRepository.findById(principal.getUserId())
                 .orElseThrow(() -> new AccessForbiddenException("Conta não encontrada"));
         if (user.getMemberId() == null) {

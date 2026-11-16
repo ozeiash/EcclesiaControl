@@ -43,4 +43,8 @@ public class UpdateFilialRequest {
     @Pattern(regexp = "^\\d{5}-?\\d{3}$", message = "CEP deve ter 8 dígitos")
     @Schema(example = "01001-000")
     private String postalCode;
+
+    @Size(max = 255)
+    @Schema(description = "Chave Pix da filial (e-mail, CPF, CNPJ, telefone ou chave aleatória)", example = "financeiro@igreja.com")
+    private String pixKey;
 }
