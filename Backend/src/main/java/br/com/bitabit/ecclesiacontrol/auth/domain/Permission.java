@@ -38,6 +38,7 @@ public class Permission {
         SETTINGS,
         PESSOAS,
         GOVERNANCA,
-        FINANCEIRO
+        FINANCEIRO,
+        PORTAL
     }
 }

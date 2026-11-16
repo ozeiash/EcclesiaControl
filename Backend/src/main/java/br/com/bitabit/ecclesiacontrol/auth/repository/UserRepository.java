@@ -36,4 +36,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
         }
         return findAllByTenant(tenantId);
     }
+
+    boolean existsByMemberId(UUID memberId);
+
+    Optional<User> findByMemberId(UUID memberId);
 }

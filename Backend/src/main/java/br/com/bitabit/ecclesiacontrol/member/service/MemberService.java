@@ -25,6 +25,7 @@ public class MemberService {
     private final MemberRepository memberRepository;
     private final MemberMapper mapper;
     private final AuditService auditService;
+    final MemberPortalService portalService;
 
     @Transactional
     public MemberResponse create(MemberRequest request, AuditActor actor) {
@@ -102,6 +103,10 @@ public class MemberService {
         member.setExitWay(request.getExitWay());
 
         Member saved = memberRepository.save(member);
+
+        if (saved.getMembershipStatus() != Member.MembershipStatus.ATIVO) {
+            portalService.suspendIfAny(saved.getId());
+        }
 
         auditService.log(actor, TenantContext.getTenantId(), "UPDATE_MEMBER_STATUS", "Member",
                 saved.getId(), before, saved.getMembershipStatus());
