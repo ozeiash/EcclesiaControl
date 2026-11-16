@@ -27,7 +27,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ContributionService {
 
-    private static final Set<String> CONTRIBUTION_CATEGORIES = Set.of("DIZIMO", "OFERTA", "MISSOES");
+    static final Set<String> CONTRIBUTION_CATEGORIES = Set.of("DIZIMO", "OFERTA", "MISSOES");
 
     private final ContributionRepository contributionRepository;
     private final MemberRepository memberRepository;

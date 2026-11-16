@@ -74,6 +74,9 @@ public class Tenant {
     @Column(name = "accounting_start_month")
     private LocalDate accountingStartMonth;
 
+    @Column(name = "pix_key", length = 140)
+    private String pixKey;
+
     public enum TenantType {
         SEDE, FILIAL, CONGREGACAO, DEPARTAMENTO
     }

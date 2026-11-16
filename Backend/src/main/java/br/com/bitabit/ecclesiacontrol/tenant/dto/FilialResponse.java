@@ -19,6 +19,8 @@ public class FilialResponse {
     String cnpj;
     String email;
     String phone;
+    @Schema(description = "Chave Pix da filial", example = "financeiro@igreja.com")
+    String pixKey;
     String address;
     String city;
     String state;
@@ -28,4 +30,5 @@ public class FilialResponse {
     YearMonth accountingStartMonth;
     LocalDateTime createdAt;
     LocalDateTime updatedAt;
+
 }

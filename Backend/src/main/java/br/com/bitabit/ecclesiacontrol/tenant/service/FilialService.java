@@ -112,6 +112,7 @@ public class FilialService {
         t.setCity(blankToNull(r.getCity()));
         t.setState(r.getState() == null ? null : r.getState().toUpperCase(Locale.ROOT));
         t.setPostalCode(r.getPostalCode() == null ? null : r.getPostalCode().replace("-", ""));
+        t.setPixKey(blankToNull(r.getPixKey()));
     }
 
     private static String blankToNull(String s) {
@@ -122,6 +123,7 @@ public class FilialService {
         return FilialResponse.builder()
                 .id(t.getId()).name(t.getName()).legalName(t.getLegalName()).type(t.getType().name())
                 .parentTenantId(t.getParentTenantId()).cnpj(t.getCnpj()).email(t.getEmail()).phone(t.getPhone())
+                .pixKey(t.getPixKey())
                 .address(t.getAddress()).city(t.getCity()).state(t.getState()).postalCode(t.getPostalCode())
                 .active(Boolean.TRUE.equals(t.getIsActive()))
                 .accountingStartMonth(t.getAccountingStartMonth() == null ? null : YearMonth.from(t.getAccountingStartMonth()))
