@@ -87,7 +87,7 @@ class MemberPortalHttpTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void staffWithoutPortalPermissionCannotUseMe() throws Exception {
+    void staffAccountWithoutMemberLinkCannotUseMe() throws Exception {
         mvc.perform(get("/me/profile").header("Authorization", secretaryA)).andExpect(status().isForbidden());
     }
 
