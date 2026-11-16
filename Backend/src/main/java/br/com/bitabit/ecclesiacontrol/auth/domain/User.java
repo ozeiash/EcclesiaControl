@@ -60,6 +60,9 @@ public class User {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "member_id")
+    private UUID memberId;
+
     public enum UserStatus {
         ACTIVE, INACTIVE, SUSPENDED
     }
