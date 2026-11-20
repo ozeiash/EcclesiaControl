@@ -285,11 +285,7 @@ public class UserManagementService {
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toSet());
 
-        boolean within = roles.stream()
-                .flatMap(r -> r.getPermissions().stream())
-                .allMatch(p -> mine.contains("PERM_" + p.getCode()));
-
-        if (!within) {
+        if (!PermissionCeiling.within(mine, roles)) {
             throw new AccessForbiddenException(message);
         }
     }
