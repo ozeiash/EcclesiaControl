@@ -109,7 +109,7 @@ public class SecurityConfig {
                 .build();
 
         response.setStatus(status.value());
-        response.setCharacterEncoding("UTF-8"); // ← adicionar antes do setContentType/getWriter
+        response.setCharacterEncoding("UTF-8");
         response.setContentType("application/json");
         response.getWriter().write(objectMapper.writeValueAsString(error));
     }
