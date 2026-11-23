@@ -46,7 +46,7 @@ public class DevDataSeeder implements CommandLineRunner {
 
         // Cada usuário é criado só se ainda não existir, então o seeder pode rodar
         // várias vezes e também completa um banco de desenvolvimento já existente.
-        ensureUser("admin@dev.local", "admin123", "Administrador (Dev)",
+            ensureUser("", "admin123", "Administrador (Dev)",
                 sede, Role.RoleName.SUPER_ADMIN);
         ensureUser("secretaria@dev.local", "secretaria123", "Secretária da Filial (Dev)",
                 filialTeste, Role.RoleName.SECRETARIO_FILIAL);

@@ -34,6 +34,30 @@ jobs:
           distribution: 'temurin'
       - run: cd Backend && mvn test
 
+      - name: Resumo de cobertura (JaCoCo)
+        if: always()
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import csv
+          rows = list(csv.DictReader(open('Backend/target/site/jacoco/jacoco.csv')))
+          def pct(c, m):
+              cov = sum(int(r[c]) for r in rows); mis = sum(int(r[m]) for r in rows)
+              return f"{100*cov/(cov+mis):.1f}% ({cov}/{cov+mis})" if cov+mis else "n/a"
+          print("### Cobertura de testes (JaCoCo)")
+          print("| Métrica | Cobertura |\n|---|---|")
+          print(f"| Linhas | {pct('LINE_COVERED','LINE_MISSED')} |")
+          print(f"| Ramos | {pct('BRANCH_COVERED','BRANCH_MISSED')} |")
+          print(f"| Instruções | {pct('INSTRUCTION_COVERED','INSTRUCTION_MISSED')} |")
+          print(f"| Métodos | {pct('METHOD_COVERED','METHOD_MISSED')} |")
+          PY
+
+      - name: Publicar relatório de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: Backend/target/site/jacoco
+
 #  frontend:
 #    runs-on: ubuntu-latest
 #    steps:
