@@ -12,4 +12,7 @@ public class AssignRoleRequest {
 
     @NotNull
     private Role.RoleName role;
+
+    // Ao atribuir MEMBRO, identifica explicitamente a ficha. Nunca inferido por nome/e-mail.
+    private UUID memberId;
 }

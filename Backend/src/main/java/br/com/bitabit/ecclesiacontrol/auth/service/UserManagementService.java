@@ -13,6 +13,9 @@ import br.com.bitabit.ecclesiacontrol.core.exception.ResourceNotFoundException;
 import br.com.bitabit.ecclesiacontrol.core.service.AuditActor;
 import br.com.bitabit.ecclesiacontrol.core.service.AuditService;
 import br.com.bitabit.ecclesiacontrol.core.util.TenantContext;
+import br.com.bitabit.ecclesiacontrol.member.domain.Member;
+import br.com.bitabit.ecclesiacontrol.member.repository.MemberRepository;
+import br.com.bitabit.ecclesiacontrol.member.service.PortalMemberEligibility;
 import br.com.bitabit.ecclesiacontrol.tenant.domain.Tenant;
 import br.com.bitabit.ecclesiacontrol.tenant.repository.TenantRepository;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +40,7 @@ public class UserManagementService {
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
     private final RefreshTokenService refreshTokenService;
+    private final MemberRepository memberRepository;
 
     private static final Set<String> SORTABLE = Set.of("fullName", "email", "status", "lastLogin", "createdAt");
     @Transactional(readOnly = true)
@@ -87,6 +91,12 @@ public class UserManagementService {
     @Transactional
     public UserRoleAssignmentResponse assignRole(UUID userId, AssignRoleRequest request, AuthenticatedUser principal) {
         rejectSelf(userId, principal);
+        if (request.getRole() == Role.RoleName.MEMBRO) {
+            userRepository.findForUpdate(userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
+        } else if (request.getMemberId() != null) {
+            throw new BusinessRuleException("A ficha de membro só pode ser informada para o papel MEMBRO");
+        }
         User user = manageableUser(userId, principal);
 
         if (request.getRole() == Role.RoleName.SUPER_ADMIN && !isSuperAdmin(principal)) {
@@ -125,19 +135,27 @@ public class UserManagementService {
         Tenant filial = tenantRepository.findById(targetFilialId)
                 .orElseThrow(() -> new ResourceNotFoundException("Filial não encontrada"));
 
-        boolean alreadyAssigned = userFilialRoleRepository.findByUserAndFilial(user, filial.getId())
-                .stream().anyMatch(ufr -> ufr.getRole().getId().equals(role.getId()));
-        if (alreadyAssigned) {
+        if (request.getRole() == Role.RoleName.MEMBRO) {
+            UUID memberId = request.getMemberId() != null ? request.getMemberId() : user.getMemberId();
+            if (memberId == null) {
+                throw new BusinessRuleException("Selecione a ficha do membro para atribuir o papel MEMBRO e vincular o portal");
+            }
+            linkValidatedMember(user, memberId, filial.getId(), principal);
+        }
+
+        var existing = userFilialRoleRepository.findByUserAndFilial(user, filial.getId()).stream()
+                .filter(ufr -> ufr.getRole().getId().equals(role.getId())).findFirst();
+        if (existing.isPresent() && !(request.getRole() == Role.RoleName.MEMBRO && request.getMemberId() != null)) {
             throw new BusinessRuleException("Usuário já possui esse papel nessa filial");
         }
 
-        UserFilialRole assignment = userFilialRoleRepository.save(UserFilialRole.builder()
+        UserFilialRole assignment = existing.orElseGet(() -> userFilialRoleRepository.save(UserFilialRole.builder()
                 .user(user)
                 .filial(filial)
                 .role(role)
-                .build());
+                .build()));
 
-        auditService.log(actor, TenantContext.getTenantId(), "ASSIGN_ROLE", "User",
+        if (existing.isEmpty()) auditService.log(actor, TenantContext.getTenantId(), "ASSIGN_ROLE", "User",
                 user.getId(), null, java.util.Map.of("filialId", filial.getId(), "role", role.getName()));
 
         return UserRoleAssignmentResponse.builder()
@@ -147,6 +165,43 @@ public class UserManagementService {
                 .role(role.getName().name())
                 .scope(role.getScope().name())
                 .build();
+    }
+
+    @Transactional
+    public UserDetailResponse linkMember(UUID userId, LinkMemberRequest request, AuthenticatedUser principal) {
+        AssignRoleRequest assignment = new AssignRoleRequest();
+        assignment.setRole(Role.RoleName.MEMBRO);
+        assignment.setFilialId(request.getFilialId());
+        assignment.setMemberId(request.getMemberId());
+        assignRole(userId, assignment, principal);
+        return getUser(userId);
+    }
+
+    private void linkValidatedMember(User user, UUID memberId, UUID filialId, AuthenticatedUser principal) {
+        if (user.getMemberId() != null && !memberId.equals(user.getMemberId())) {
+            throw new BusinessRuleException("Esta conta já está vinculada a outra ficha de membro");
+        }
+        Member member = memberRepository.findForUpdate(memberId)
+                .orElseThrow(() -> new ResourceNotFoundException("Membro não encontrado"));
+        if (!filialId.equals(member.getTenantId())) {
+            throw new BusinessRuleException("A ficha do membro deve pertencer à filial selecionada para o papel");
+        }
+        if (!user.getTenant().getId().equals(member.getTenantId())) {
+            throw new BusinessRuleException("A ficha deve pertencer à filial de cadastro do usuário");
+        }
+        if (user.getStatus() != User.UserStatus.ACTIVE) {
+            throw new BusinessRuleException("Ative a conta antes de vincular a ficha de membro");
+        }
+        PortalMemberEligibility.requireEligible(member);
+        if (userRepository.findByMemberId(memberId).filter(owner -> !owner.getId().equals(user.getId())).isPresent()) {
+            throw new BusinessRuleException("Esta ficha de membro já está vinculada a outra conta");
+        }
+        if (user.getMemberId() == null) {
+            user.setMemberId(memberId);
+            userRepository.save(user);
+            auditService.log(AuditActor.from(principal), member.getTenantId(), "LINK_MEMBER", "User",
+                    user.getId(), null, Map.of("memberId", memberId));
+        }
     }
 
 
@@ -266,7 +321,10 @@ public class UserManagementService {
         return UserDetailResponse.builder().id(user.getId()).email(user.getEmail()).fullName(user.getFullName())
                 .phone(user.getPhone()).status(user.getStatus().name()).lastLogin(user.getLastLogin())
                 .createdAt(user.getCreatedAt()).updatedAt(user.getUpdatedAt()).homeFilialId(user.getTenant().getId())
-                .homeFilialName(user.getTenant().getName()).roles(visibleRoles(roles)).build();
+                .homeFilialName(user.getTenant().getName()).memberId(user.getMemberId())
+                .memberName(user.getMemberId() == null ? null : memberRepository.findById(user.getMemberId())
+                        .map(Member::getFullName).orElse(null))
+                .roles(visibleRoles(roles)).build();
     }
 
     private UserResponse toResponse(User user) {

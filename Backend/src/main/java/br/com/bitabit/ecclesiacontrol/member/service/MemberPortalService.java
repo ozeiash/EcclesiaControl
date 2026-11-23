@@ -27,8 +27,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
-import java.time.LocalDate;
-import java.time.Period;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -43,7 +41,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class MemberPortalService {
 
-    private static final int MIN_AGE = 18;
     private static final String ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -60,21 +57,10 @@ public class MemberPortalService {
 
     @Transactional
     public PortalAccessResponse grantAccess(UUID memberId, AuthenticatedUser principal) {
-        Member member = memberRepository.findById(memberId)
+        Member member = memberRepository.findForUpdate(memberId)
                 .orElseThrow(() -> new ResourceNotFoundException("Membro não encontrado"));
 
-        if (member.getMembershipStatus() != Member.MembershipStatus.ATIVO) {
-            throw new BusinessRuleException("Só membros ativos podem ter acesso ao portal");
-        }
-        if (member.getBirthDate() == null) {
-            throw new BusinessRuleException("Informe a data de nascimento do membro antes de liberar o acesso");
-        }
-        if (Period.between(member.getBirthDate(), LocalDate.now()).getYears() < MIN_AGE) {
-            throw new BusinessRuleException("O acesso ao portal é liberado apenas para maiores de 18 anos");
-        }
-        if (member.getEmail() == null || member.getEmail().isBlank()) {
-            throw new BusinessRuleException("Cadastre um e-mail para o membro antes de liberar o acesso");
-        }
+        PortalMemberEligibility.requireEligible(member);
         String email = member.getEmail().trim().toLowerCase(Locale.ROOT);
         if (userRepository.existsByMemberId(memberId)) {
             throw new BusinessRuleException("Este membro já tem acesso ao portal");

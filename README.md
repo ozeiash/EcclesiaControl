@@ -58,3 +58,12 @@ Postgres (volume novo). Se precisar recriar do zero:
 docker compose down -v
 docker compose up -d
 \`\`\`
+## Vínculo de conta existente com membro
+
+`PUT /users/{userId}/member-link` recebe `{ "memberId": "UUID", "filialId": "UUID" }` e devolve o detalhe da conta com `memberId` e `memberName`. Exige USER_MANAGE, respeita o teto de permissões e não permite alterar a própria conta. Para token GLOBAL, informe filialId; para LOCAL, só a filial ativa é aceita.
+
+A operação é transacional: vincula a ficha e garante o papel MEMBRO sem duplicação. Preserva login, senha e outros papéis. A ficha deve pertencer à filial de cadastro da conta, estar ativa, possuir e-mail e data de nascimento e ser de pessoa maior de idade. A conta deve estar ativa. A operação recusa fichas de outra conta e não substitui vínculos já existentes. Bloqueios de linha e a restrição única já existente protegem contra vínculos concorrentes.
+
+`POST /users/{userId}/roles` aceita `memberId` para role MEMBRO e passa a exigir a ficha quando a conta ainda não está vinculada. Papel e vínculo são salvos juntos; uma falha não deixa o papel atribuído parcialmente. Não há busca automática da pessoa por nome ou e-mail.
+
+O caminho `POST /members/{memberId}/portal-access` continua criando uma conta nova vinculada com senha provisória. Não precisa de migration nova: o campo users.member_id e seu índice único já foram introduzidos pela V20. Reinicie o backend após a atualização do código.

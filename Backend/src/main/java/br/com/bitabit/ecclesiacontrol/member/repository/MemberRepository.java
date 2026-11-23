@@ -17,6 +17,11 @@ import java.util.UUID;
 @Repository
 public interface MemberRepository extends TenantScopedRepository<Member, UUID> {
 
+    // HQL mantém o filtro de filial ativo, inclusive com bloqueio de concorrência.
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select m from Member m where m.id = :id")
+    java.util.Optional<Member> findForUpdate(@Param("id") UUID id);
+
     interface StatusCountView { Member.MembershipStatus getStatus(); Long getTotal(); }
     interface TenantCountView { UUID getTenantId(); Long getTotal(); }
 

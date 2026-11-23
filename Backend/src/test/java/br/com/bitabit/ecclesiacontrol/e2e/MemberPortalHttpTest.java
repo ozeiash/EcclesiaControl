@@ -199,6 +199,99 @@ class MemberPortalHttpTest extends AbstractIntegrationTest {
             .andExpect(status().is4xxClientError());
     }
 
+    @Test
+    void linksExistingMemberAccountWithoutChangingItsPasswordAndWorksWithCurrentToken() throws Exception {
+        String memberId = createMember(secretaryA, "Conta já criada", "existing@e2e.local", "1990-05-10");
+        User existing = existingAccount(filialA, "existing@e2e.local");
+        assignments.save(UserFilialRole.builder().user(existing).filial(filialA)
+                .role(roles.findByName(Role.RoleName.MEMBRO).orElseThrow()).build());
+        String originalHash = existing.getPasswordHash();
+        String token = loginWith(existing.getEmail(), PASSWORD);
+        mvc.perform(get("/me/profile").header("Authorization", token)).andExpect(status().isForbidden());
+
+        for (int attempt = 0; attempt < 2; attempt++) {
+            mvc.perform(put("/users/" + existing.getId() + "/member-link").header("Authorization", secretaryA)
+                    .contentType(APPLICATION_JSON).content("{\"memberId\":\"" + memberId + "\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.memberId").value(memberId))
+                    .andExpect(jsonPath("$.memberName").value("Conta já criada"))
+                    .andExpect(jsonPath("$.roles.length()").value(1));
+        }
+        assertThat(users.findById(existing.getId()).orElseThrow().getPasswordHash()).isEqualTo(originalHash);
+        mvc.perform(get("/me/profile").header("Authorization", token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(memberId));
+        loginWith(existing.getEmail(), PASSWORD);
+    }
+
+    @Test
+    void assigningMemberRequiresAnExplicitSheetAndSavesRoleAndLinkTogether() throws Exception {
+        User existing = existingAccount(filialA, "new-link@e2e.local");
+        String memberId = createMember(secretaryA, "Novo vínculo", existing.getEmail(), "1988-03-03");
+        mvc.perform(post("/users/" + existing.getId() + "/roles").header("Authorization", secretaryA)
+                .contentType(APPLICATION_JSON).content("{\"role\":\"MEMBRO\"}"))
+                .andExpect(status().isUnprocessableEntity());
+        assertThat(assignments.findByUser(existing)).isEmpty();
+        assertThat(users.findById(existing.getId()).orElseThrow().getMemberId()).isNull();
+        mvc.perform(post("/users/" + existing.getId() + "/roles").header("Authorization", secretaryA)
+                .contentType(APPLICATION_JSON).content("{\"role\":\"LIDER_CELULA\"}"))
+                .andExpect(status().isCreated());
+        mvc.perform(post("/users/" + existing.getId() + "/roles").header("Authorization", secretaryA)
+                .contentType(APPLICATION_JSON).content("{\"role\":\"MEMBRO\",\"memberId\":\"" + memberId + "\"}"))
+                .andExpect(status().isCreated());
+        assertThat(assignments.findByUser(existing)).hasSize(2);
+        mvc.perform(get("/me/profile").header("Authorization", loginWith(existing.getEmail(), PASSWORD)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(memberId));
+    }
+
+    @Test
+    void rejectsDuplicateLinksReassignmentAndForeignFilialWithoutPartialRoles() throws Exception {
+        String first = createMember(secretaryA, "Primeira ficha", "first@e2e.local", "1988-03-03");
+        String second = createMember(secretaryA, "Segunda ficha", "second@e2e.local", "1988-03-03");
+        String foreign = createMember(secretaryB, "Outra filial", "foreign@e2e.local", "1988-03-03");
+        User one = existingAccount(filialA, "one@e2e.local");
+        User two = existingAccount(filialA, "two@e2e.local");
+        mvc.perform(put("/users/" + one.getId() + "/member-link").header("Authorization", secretaryA)
+                .contentType(APPLICATION_JSON).content("{\"memberId\":\"" + first + "\"}"))
+                .andExpect(status().isOk());
+        for (String denied : new String[]{first, foreign}) {
+            mvc.perform(put("/users/" + two.getId() + "/member-link").header("Authorization", secretaryA)
+                    .contentType(APPLICATION_JSON).content("{\"memberId\":\"" + denied + "\"}"))
+                    .andExpect(status().is4xxClientError());
+        }
+        mvc.perform(put("/users/" + one.getId() + "/member-link").header("Authorization", secretaryA)
+                .contentType(APPLICATION_JSON).content("{\"memberId\":\"" + second + "\"}"))
+                .andExpect(status().isUnprocessableEntity());
+        assertThat(users.findById(one.getId()).orElseThrow().getMemberId().toString()).isEqualTo(first);
+        assertThat(users.findById(two.getId()).orElseThrow().getMemberId()).isNull();
+        assertThat(assignments.findByUser(two)).isEmpty();
+        mvc.perform(put("/users/" + two.getId() + "/member-link")
+                .header("Authorization", loginWith(one.getEmail(), PASSWORD))
+                .contentType(APPLICATION_JSON).content("{\"memberId\":\"" + second + "\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void linkRejectsUnderageInactiveAndMissingBirthDate() throws Exception {
+        User existing = existingAccount(filialA, "rules@e2e.local");
+        String underage = createMember(secretaryA, "Menor", "minor@e2e.local", LocalDate.now().minusYears(10).toString());
+        String missingBirth = createMember(secretaryA, "Sem nascimento", "birth@e2e.local", "1990-05-10");
+        jdbc.update("update members set birth_date = null where id = ?", UUID.fromString(missingBirth));
+        String inactive = createMember(secretaryA, "Inativo", "inactive@e2e.local", "1990-05-10");
+        jdbc.update("update members set membership_status = 'INATIVO' where id = ?", UUID.fromString(inactive));
+        for (String denied : new String[]{underage, missingBirth, inactive}) {
+            mvc.perform(put("/users/" + existing.getId() + "/member-link").header("Authorization", secretaryA)
+                    .contentType(APPLICATION_JSON).content("{\"memberId\":\"" + denied + "\"}"))
+                    .andExpect(status().isUnprocessableEntity());
+        }
+        assertThat(users.findById(existing.getId()).orElseThrow().getMemberId()).isNull();
+        assertThat(assignments.findByUser(existing)).isEmpty();
+    }
+
+    private User existingAccount(Tenant filial, String email) {
+        return users.saveAndFlush(User.builder().tenant(filial).email(email).fullName("Usuário existente")
+                .status(User.UserStatus.ACTIVE).passwordHash(encoder.encode(PASSWORD)).build());
+    }
+
     // ---------------------------------------------------------------- apoio
 
     private String createMember(String token, String name, String email, String birthDate) throws Exception {

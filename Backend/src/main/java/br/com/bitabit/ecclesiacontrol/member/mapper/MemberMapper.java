@@ -84,6 +84,7 @@ public class MemberMapper {
     public MemberSummaryResponse toSummary(Member m) {
         return MemberSummaryResponse.builder()
                 .id(m.getId())
+                .filialId(m.getTenantId())
                 .fullName(m.getFullName())
                 .membershipStatus(m.getMembershipStatus().name())
                 .currentRole(m.getCurrentRole())

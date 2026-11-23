@@ -18,5 +18,7 @@ public class UserDetailResponse {
     private LocalDateTime updatedAt;
     private UUID homeFilialId;
     private String homeFilialName;
+    private UUID memberId;
+    private String memberName;
     private List<UserRoleAssignmentResponse> roles;
 }

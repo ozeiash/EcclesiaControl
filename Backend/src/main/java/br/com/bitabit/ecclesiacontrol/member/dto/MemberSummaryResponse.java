@@ -9,6 +9,7 @@ import java.util.UUID;
 @Builder
 public class MemberSummaryResponse {
     private UUID id;
+    private UUID filialId;
     private String fullName;
     private String membershipStatus;
     private String currentRole;

@@ -52,7 +52,7 @@ public class UserManagementController {
             description = """
                     **Teto de permissões:** só é possível atribuir um papel cujas permissões você mesmo possui (o Super
                     Admin é isento). Não é possível atribuir papel a si mesmo. Token LOCAL: a filial é sempre a ativa e só
-                    papéis LOCAL são aceitos. Token GLOBAL: informe `filialId`.""")
+                    papéis LOCAL são aceitos. Token GLOBAL: informe `filialId`. Para MEMBRO, selecione `memberId`: papel e vínculo são salvos juntos; contas já vinculadas podem reutilizar a ficha atual.""")
     @ApiResponse(responseCode = "201", description = "Papel atribuído")
     @PostMapping("/{userId}/roles")
     @PreAuthorize("hasAuthority('PERM_USER_MANAGE')")
@@ -62,6 +62,17 @@ public class UserManagementController {
             @AuthenticationPrincipal AuthenticatedUser principal) {
         var assignment = userManagementService.assignRole(userId, request, principal);
         return ResponseEntity.status(HttpStatus.CREATED).body(assignment);
+    }
+
+    @Operation(summary = "Vincular uma conta existente à ficha de membro",
+            description = "Preserva login, senha e papéis. Atribui MEMBRO na filial da ficha, se necessário. "
+                    + "Informe memberId e, para token GLOBAL, filialId. Não substitui vínculos existentes.")
+    @PutMapping("/{userId}/member-link")
+    @PreAuthorize("hasAuthority('PERM_USER_MANAGE')")
+    public UserDetailResponse linkMember(@PathVariable UUID userId,
+                                        @RequestBody @Valid LinkMemberRequest request,
+                                        @AuthenticationPrincipal AuthenticatedUser principal) {
+        return userManagementService.linkMember(userId, request, principal);
     }
 
     @Operation(summary = "Listar usuários",
